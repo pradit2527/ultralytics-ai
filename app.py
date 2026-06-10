@@ -1,5 +1,5 @@
 """
-YOLO Video Processor — เว็บ UI ประมวลผลไฟล์วิดีโอด้วย Ultralytics YOLO
+AIDC Tech Video Processor — เว็บ UI ประมวลผลไฟล์วิดีโอด้วย Ultralytics YOLO
 รัน:  D:\\yoloe\\venv\\Scripts\\python.exe D:\\yoloe\\app.py
 แล้วเปิดเบราว์เซอร์ตามลิงก์ที่ขึ้น (ปกติ http://127.0.0.1:7860)
 """
@@ -255,7 +255,7 @@ HERO = f"""
 <div class="app-hero">
   <div class="hero-icon">🎬</div>
   <div>
-    <h1>YOLO Video Processor</h1>
+    <h1>AIDC Tech Video Processor</h1>
     <p>อัปโหลดวิดีโอ → ตรวจจับวัตถุด้วย AI → ดูผลลัพธ์พร้อมสรุปการตรวจจับ</p>
   </div>
   <div class="gpu-badge"><span class="dot"></span> {_badge}</div>
@@ -267,7 +267,7 @@ WELCOME = (
     'แล้วกด <b>เริ่มประมวลผล</b> ผลลัพธ์จะแสดงที่นี่</div>'
 )
 
-with gr.Blocks(title="YOLO Video Processor", fill_width=False) as demo:
+with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
     gr.HTML(HERO)
     with gr.Row(equal_height=False):
         # ───────── ฝั่งซ้าย: ตั้งค่า ─────────
