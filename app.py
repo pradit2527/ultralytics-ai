@@ -20,27 +20,36 @@ from ultralytics import YOLO, YOLOWorld
 # โมเดล open-vocabulary สำหรับตรวจจับวัตถุ "ตามคำที่พิมพ์" (เช่น tree)
 WORLD_MODEL = "yolov8s-world.pt"
 
-# รายการวัตถุสำเร็จรูป: ป้ายภาษาไทย (แสดงในตาราง) → คำสั่งภาษาอังกฤษ (ส่งให้ AI)
-PRESETS = {
-    "👤 คน": "person",
-    "🐾 สัตว์": "animal",
-    "🐶 สุนัข": "dog",
-    "🐦 นก": "bird",
-    "🌳 ต้นไม้": "tree",
-    "🪵 ท่อนไม้ใหญ่": "wood log",
-    "🌿 พุ่มไม้": "bush",
-    "🌊 ลำธาร/แม่น้ำ": "river",
-    "🔥 กองไฟ/ไฟ": "fire",
-    "💨 ควันไฟ": "smoke",
-    "⛰️ ภูเขา": "mountain",
-    "🪨 ก้อนหิน": "rock",
-    "🚗 รถยนต์": "car",
-    "🏠 อาคาร/สิ่งปลูกสร้าง": "building",
-    "🛣️ ถนน/ทางเดิน": "road",
-    "🚧 ป้าย/เครื่องหมาย": "sign",
+# รายการวัตถุสำเร็จรูป แบ่งเป็นหมวดหมู่: หมวด → { ป้ายไทย → คำสั่งอังกฤษ }
+CATEGORIES = {
+    "คนและสัตว์": {
+        "👤 คน": "person",
+        "🐾 สัตว์": "animal",
+        "🐶 สุนัข": "dog",
+        "🐦 นก": "bird",
+    },
+    "ธรรมชาติและภูมิประเทศ": {
+        "🌳 ต้นไม้": "tree",
+        "🪵 ท่อนไม้ใหญ่": "wood log",
+        "🌿 พุ่มไม้": "bush",
+        "🌊 ลำธาร/แม่น้ำ": "river",
+        "⛰️ ภูเขา": "mountain",
+        "🪨 ก้อนหิน": "rock",
+    },
+    "ไฟและควัน": {
+        "🔥 กองไฟ/ไฟ": "fire",
+        "💨 ควันไฟ": "smoke",
+    },
+    "ยานพาหนะและสิ่งก่อสร้าง": {
+        "🚗 รถยนต์": "car",
+        "🏠 อาคาร/สิ่งปลูกสร้าง": "building",
+        "🛣️ ถนน/ทางเดิน": "road",
+        "🚧 ป้าย/เครื่องหมาย": "sign",
+    },
 }
-# แผนที่ย้อนกลับ: คำอังกฤษ → ป้ายไทย (ไว้แปลชื่อในตารางผลลัพธ์)
-PROMPT_TO_TH = {v: k for k, v in PRESETS.items()}
+# รวมทุกหมวดเป็น dict เดียว + แผนที่ย้อนกลับ (อังกฤษ → ไทย) ไว้แปลชื่อในตาราง
+PRESETS = {th: en for items in CATEGORIES.values() for th, en in items.items()}
+PROMPT_TO_TH = {en: th for th, en in PRESETS.items()}
 
 # ชุดสำเร็จรูป (ปุ่มกดเลือกทีเดียวหลายอย่าง)
 QUICK_SETS = {
@@ -194,77 +203,120 @@ def process_video(video_path, model_path, preset_labels, custom_classes, conf, u
 
 
 THEME = gr.themes.Soft(
-    primary_hue="violet",
-    secondary_hue="indigo",
+    primary_hue="blue",
+    secondary_hue="sky",
     neutral_hue="slate",
-    font=[gr.themes.GoogleFont("Inter"), "system-ui", "sans-serif"],
-    radius_size="lg",
+    font=[gr.themes.GoogleFont("Sarabun"), gr.themes.GoogleFont("Inter"),
+          "system-ui", "sans-serif"],
+    radius_size="md",
 )
 
-_dot = "#34d399" if HAS_CUDA else "#94a3b8"
-_badge = ("⚡ GPU พร้อม — " + GPU_NAME) if HAS_CUDA else "🖥️ โหมด CPU"
+_dot = "#22c55e" if HAS_CUDA else "#94a3b8"
+_badge = ("พร้อมใช้งาน · GPU" if HAS_CUDA else "พร้อมใช้งาน · CPU")
 
 CSS = """
-.gradio-container {max-width: 1180px !important; margin: auto !important;}
+.gradio-container {max-width: 1200px !important; margin: auto !important;}
 footer {display:none !important;}
 
-.app-hero {
+/* ── หัวระบบแบบราชการ ─────────────────────────────────── */
+.gov-header {
   display:flex; align-items:center; gap:18px;
-  padding:26px 30px; border-radius:20px; margin-bottom:6px;
-  background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 48%,#d946ef 100%);
-  color:#fff; box-shadow:0 14px 38px rgba(124,58,237,.35);
+  padding:20px 26px; margin-bottom:14px; color:#fff;
+  background:linear-gradient(180deg,#16407f 0%,#0e2a5e 100%);
+  border-top:4px solid #c9a14a; border-radius:10px;
+  box-shadow:0 6px 18px rgba(14,42,94,.25);
 }
-.app-hero .hero-icon {font-size:44px; line-height:1; filter:drop-shadow(0 3px 6px rgba(0,0,0,.25));}
-.app-hero h1 {margin:0; font-size:27px; font-weight:800; color:#fff; letter-spacing:.2px;}
-.app-hero p  {margin:5px 0 0; opacity:.92; font-size:14px;}
-.app-hero .gpu-badge {
-  margin-left:auto; background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.25);
-  padding:9px 16px; border-radius:999px; font-size:13px; font-weight:600;
-  display:flex; align-items:center; gap:9px; white-space:nowrap; backdrop-filter:blur(8px);
+.gov-emblem {
+  width:58px; height:58px; flex:0 0 58px; border-radius:50%;
+  background:rgba(255,255,255,.12); border:2px solid #c9a14a;
+  display:flex; align-items:center; justify-content:center; font-size:30px;
 }
-.gpu-badge .dot {width:9px; height:9px; border-radius:50%; background:%DOT%;
-  box-shadow:0 0 0 4px rgba(52,211,153,.25);}
+.gov-titles .org {font-size:12px; letter-spacing:2.5px; text-transform:uppercase;
+  color:#cfe0ff; font-weight:600;}
+.gov-titles h1 {margin:2px 0 0; font-size:22px; font-weight:700; color:#fff; line-height:1.3;}
+.gov-titles .sub {margin:3px 0 0; font-size:12.5px; color:#a9bce0;}
+.gov-status {margin-left:auto; text-align:right; font-size:11.5px; color:#cdd9f2;
+  white-space:nowrap;}
+.gov-status .badge {display:inline-flex; align-items:center; gap:8px; margin-top:5px;
+  background:rgba(255,255,255,.1); border:1px solid rgba(201,161,74,.55);
+  padding:6px 13px; border-radius:6px; font-weight:600; color:#fff; font-size:12.5px;}
+.gov-status .dot {width:8px; height:8px; border-radius:50%; background:%DOT%;
+  box-shadow:0 0 0 3px rgba(34,197,94,.25);}
 
-.card {border-radius:18px !important; box-shadow:0 6px 22px rgba(15,23,42,.07) !important;
-  border:1px solid var(--border-color-primary) !important; padding:14px 16px !important;}
-.section-title {font-weight:700 !important; font-size:14px !important; color:#7c3aed !important;
-  margin:0 2px 2px !important;}
+/* ── การ์ด ───────────────────────────────────────────── */
+.card {border-radius:10px !important; background:#fff !important;
+  border:1px solid #dbe2ee !important; box-shadow:0 2px 8px rgba(16,42,94,.05) !important;
+  padding:14px 16px !important;}
+.section-title {font-weight:700 !important; font-size:14px !important; color:#13366e !important;
+  border-left:4px solid #c9a14a; padding-left:9px !important; margin:0 0 9px !important;}
 
-.run-btn {
-  background:linear-gradient(135deg,#6366f1,#8b5cf6,#a855f7) !important; border:none !important;
-  color:#fff !important; font-weight:700 !important; font-size:16px !important;
-  border-radius:14px !important; padding:15px !important; margin-top:4px !important;
-  box-shadow:0 10px 24px rgba(124,58,237,.38) !important; transition:transform .12s ease, filter .12s ease;
-}
-.run-btn:hover {filter:brightness(1.07); transform:translateY(-1px);}
+/* ── ปุ่มหลัก ─────────────────────────────────────────── */
+.run-btn {background:linear-gradient(180deg,#16407f,#0e2a5e) !important;
+  border:1px solid #0a214b !important; color:#fff !important; font-weight:700 !important;
+  font-size:15.5px !important; border-radius:8px !important; padding:14px !important;
+  margin-top:4px !important; box-shadow:0 4px 12px rgba(14,42,94,.3) !important;
+  transition:filter .12s ease;}
+.run-btn:hover {filter:brightness(1.1);}
 
-.status-box {border-radius:14px !important; padding:14px 16px !important;
-  background:linear-gradient(135deg,#f5f3ff,#faf5ff) !important;
-  border:1px solid #e9d5ff !important; font-size:14px !important;}
+.status-box {border-radius:8px !important; padding:13px 16px !important; color:#1e293b !important;
+  background:#eef3fb !important; border:1px solid #cfdcf2 !important;
+  border-left:4px solid #13366e !important; font-size:14px !important;}
 
-.hint {font-size:12.5px !important; color:#64748b !important; margin:6px 2px 0 !important;}
-.quick-btn {border-radius:999px !important; font-size:12.5px !important; font-weight:600 !important;
-  background:#f1f5f9 !important; border:1px solid #e2e8f0 !important; color:#475569 !important;
+.hint {font-size:12.5px !important; color:#5b6b86 !important; margin:4px 2px 0 !important;}
+.quick-btn {border-radius:6px !important; font-size:12.5px !important; font-weight:600 !important;
+  background:#eef2f8 !important; border:1px solid #d4ddec !important; color:#274472 !important;
   min-width:0 !important; padding:7px 12px !important;}
-.quick-btn:hover {background:#ede9fe !important; border-color:#c4b5fd !important; color:#6d28d9 !important;}
-.preset-group label {border-radius:999px !important;}
+.quick-btn:hover {background:#13366e !important; border-color:#13366e !important; color:#fff !important;}
+
+/* ── หัวข้อหมวด + ตาราง grid ของรายการวัตถุ ───────────── */
+.cat-title {font-size:12.5px !important; font-weight:700 !important; color:#274472 !important;
+  margin:11px 2px 3px !important;}
+.preset-group div[data-testid="checkbox-group"] {
+  display:grid !important; grid-template-columns:repeat(2, minmax(0,1fr)) !important;
+  gap:7px !important;}
+.preset-group div[data-testid="checkbox-group"] label {
+  margin:0 !important; width:100% !important; box-sizing:border-box !important;
+  border:1px solid #d4ddec !important; border-radius:7px !important;
+  background:#fbfcfe !important; padding:7px 10px !important; transition:all .12s ease;}
+.preset-group div[data-testid="checkbox-group"] label:hover {
+  border-color:#9db4d8 !important; background:#f1f5fb !important;}
+.preset-group div[data-testid="checkbox-group"] label:has(input:checked) {
+  border-color:#13366e !important; background:#e8eff8 !important;
+  box-shadow:inset 0 0 0 1px #13366e !important;}
+
+/* ── ส่วนท้าย ─────────────────────────────────────────── */
+.gov-footer {text-align:center; color:#64748b; font-size:12px; line-height:1.7;
+  padding:16px 0 6px; margin-top:12px; border-top:1px solid #dbe2ee;}
+.gov-footer b {color:#13366e;}
 """
 CSS = CSS.replace("%DOT%", _dot)
 
 HERO = f"""
-<div class="app-hero">
-  <div class="hero-icon">🎬</div>
-  <div>
-    <h1>AIDC Tech Video Processor</h1>
-    <p>อัปโหลดวิดีโอ → ตรวจจับวัตถุด้วย AI → ดูผลลัพธ์พร้อมสรุปการตรวจจับ</p>
+<div class="gov-header">
+  <div class="gov-emblem">🛡️</div>
+  <div class="gov-titles">
+    <div class="org">AIDC Tech</div>
+    <h1>ລະບົບປະມວນຜົນ ແລະ ວິເຄາະວິດີໂອດ້ວຍປັນຍາປະດິດ</h1>
+    <div class="sub">AIDC Tech Video Processor — AI Video Analytics System</div>
   </div>
-  <div class="gpu-badge"><span class="dot"></span> {_badge}</div>
+  <div class="gov-status">
+    สถานะระบบประมวลผล
+    <div class="badge"><span class="dot"></span> {_badge}</div>
+  </div>
+</div>
+"""
+
+FOOTER = """
+<div class="gov-footer">
+  <b>AIDC Tech</b> · ระบบวิเคราะห์วิดีโออัจฉริยะ · เวอร์ชัน 1.0<br>
+  ขับเคลื่อนด้วยเทคโนโลยี Ultralytics YOLO — สงวนลิขสิทธิ์ &copy; 2569
 </div>
 """
 
 WELCOME = (
-    '<div class="status-box">👋 ยินดีต้อนรับ — อัปโหลดวิดีโอทางซ้าย '
-    'แล้วกด <b>เริ่มประมวลผล</b> ผลลัพธ์จะแสดงที่นี่</div>'
+    '<div class="status-box">โปรดอัปโหลดไฟล์วิดีโอและเลือกรายการวัตถุที่ต้องการ'
+    'ตรวจจับทางด้านซ้าย จากนั้นกดปุ่ม <b>เริ่มประมวลผล</b> '
+    'ระบบจะแสดงผลการวิเคราะห์ ณ บริเวณนี้</div>'
 )
 
 with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
@@ -273,19 +325,24 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
         # ───────── ฝั่งซ้าย: ตั้งค่า ─────────
         with gr.Column(scale=4):
             with gr.Group(elem_classes="card"):
-                gr.Markdown("📤 ไฟล์วิดีโอ", elem_classes="section-title")
+                gr.Markdown("ไฟล์วิดีโอนำเข้า", elem_classes="section-title")
                 video_in = gr.Video(label="", height=210)
 
             with gr.Group(elem_classes="card"):
-                gr.Markdown("🎯 เลือกสิ่งที่จะตรวจจับ/นับ", elem_classes="section-title")
+                gr.Markdown("รายการวัตถุที่ต้องการตรวจจับ", elem_classes="section-title")
                 gr.Markdown("**ชุดสำเร็จรูป** (กดเลือกทีเดียวหลายอย่าง):",
                             elem_classes="hint")
                 with gr.Row():
                     quick_btns = [gr.Button(name, size="sm", elem_classes="quick-btn")
                                   for name in QUICK_SETS]
-                preset_cg = gr.CheckboxGroup(
-                    choices=list(PRESETS.keys()), value=[],
-                    label="หรือเลือกเองทีละอย่าง", elem_classes="preset-group")
+                # CheckboxGroup แยกตามหมวด เรียงเป็นตาราง grid 2 คอลัมน์
+                preset_groups = []
+                for cat_label, items in CATEGORIES.items():
+                    gr.Markdown(cat_label, elem_classes="cat-title")
+                    cg = gr.CheckboxGroup(
+                        choices=list(items.keys()), value=[], show_label=False,
+                        container=False, elem_classes="preset-group")
+                    preset_groups.append(cg)
                 custom_tb = gr.Textbox(
                     label="เพิ่มเอง (พิมพ์ภาษาอังกฤษ คั่นด้วย ,)",
                     placeholder="เช่น: bridge, waterfall, helicopter",
@@ -296,7 +353,7 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                     find_models(), value=find_models()[0],
                     label="โมเดล .pt (ใช้เมื่อไม่ได้เลือก/พิมพ์อะไร)")
 
-            with gr.Accordion("⚙️ ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
+            with gr.Accordion("ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
                 conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
                                     label="ความมั่นใจขั้นต่ำ (confidence)")
                 stride_sl = gr.Slider(1, 10, value=1, step=1,
@@ -304,35 +361,50 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                 gpu_ck = gr.Checkbox(value=HAS_CUDA, label="ใช้ GPU เร่งความเร็ว",
                                      interactive=HAS_CUDA)
 
-            run_btn = gr.Button("▶️  เริ่มประมวลผล", elem_classes="run-btn")
+            run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
 
         # ───────── ฝั่งขวา: ผลลัพธ์ ─────────
         with gr.Column(scale=6):
             status = gr.HTML(WELCOME)
             with gr.Group(elem_classes="card"):
-                gr.Markdown("🎥 วิดีโอผลลัพธ์", elem_classes="section-title")
+                gr.Markdown("วิดีโอผลการประมวลผล", elem_classes="section-title")
                 video_out = gr.Video(label="", height=360)
             with gr.Group(elem_classes="card"):
-                gr.Markdown("📊 สรุปการตรวจจับ", elem_classes="section-title")
+                gr.Markdown("สรุปผลการตรวจจับ", elem_classes="section-title")
                 table_out = gr.Dataframe(label="", interactive=False, wrap=True)
 
-    # ปุ่มชุดสำเร็จรูป → เพิ่มรายการเข้า checkbox (รวมกับที่เลือกไว้เดิม)
+    gr.HTML(FOOTER)
+
+    # ปุ่มชุดสำเร็จรูป → เพิ่มรายการเข้าหมวดที่เกี่ยวข้อง (รวมกับที่เลือกไว้เดิม)
     def _add_set(to_add):
-        def fn(current):
-            return gr.update(value=list(dict.fromkeys((current or []) + to_add)))
+        def fn(*current_vals):
+            updates = []
+            for items, vals in zip(CATEGORIES.values(), current_vals):
+                add_here = [x for x in to_add if x in items]
+                updates.append(gr.update(
+                    value=list(dict.fromkeys((vals or []) + add_here))))
+            return updates
         return fn
 
     for btn, name in zip(quick_btns, QUICK_SETS):
-        btn.click(_add_set(QUICK_SETS[name]), inputs=preset_cg, outputs=preset_cg)
+        btn.click(_add_set(QUICK_SETS[name]),
+                  inputs=preset_groups, outputs=preset_groups)
 
-    def _run(*args, progress=gr.Progress()):
-        video, table, summary = process_video(*args, progress=progress)
-        html = f'<div class="status-box">{summary}</div>'
-        return video, table, html
+    n_groups = len(preset_groups)
+
+    def _run(video, model_path, *rest, progress=gr.Progress()):
+        group_vals = rest[:n_groups]
+        custom_classes, conf, use_gpu, stride = rest[n_groups:]
+        preset_labels = [x for vals in group_vals for x in (vals or [])]
+        video_out_, table, summary = process_video(
+            video, model_path, preset_labels, custom_classes, conf, use_gpu,
+            stride, progress=progress)
+        return video_out_, table, f'<div class="status-box">{summary}</div>'
 
     run_btn.click(
         _run,
-        inputs=[video_in, model_dd, preset_cg, custom_tb, conf_sl, gpu_ck, stride_sl],
+        inputs=[video_in, model_dd, *preset_groups, custom_tb,
+                conf_sl, gpu_ck, stride_sl],
         outputs=[video_out, table_out, status],
     )
 
