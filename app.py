@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 from collections import Counter, defaultdict
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -19,6 +20,8 @@ from ultralytics import YOLO, YOLOWorld
 
 # โมเดล open-vocabulary สำหรับตรวจจับวัตถุ "ตามคำที่พิมพ์" (เช่น tree)
 WORLD_MODEL = "yolov8s-world.pt"
+# โมเดล segmentation (วาด mask ขอบเขตวัตถุ) — รุ่นเดียวกับ yolo26n ดาวน์โหลดอัตโนมัติ
+SEG_MODEL = "yolo26n-seg.pt"
 
 # รายการวัตถุสำเร็จรูป แบ่งเป็นหมวดหมู่: หมวด → { ป้ายไทย → คำสั่งอังกฤษ }
 CATEGORIES = {
@@ -144,11 +147,12 @@ def _reencode_h264(src: str) -> str:
 
 
 def process_video(video_path, model_path, preset_labels, animal_labels, custom_classes,
-                  conf, use_gpu, frame_stride, progress=gr.Progress()):
+                  segment, conf, use_gpu, frame_stride, progress=gr.Progress()):
     if not video_path:
         raise gr.Error("กรุณาอัปโหลดไฟล์วิดีโอก่อน")
 
     device = 0 if (use_gpu and HAS_CUDA) else "cpu"
+    seg_note = ""
     # รวม: หมวดที่ติ๊ก + สัตว์ที่เลือกจากรายการละเอียด + ที่พิมพ์เอง (ตัดซ้ำ คงลำดับ)
     chosen = [PRESETS[l] for l in (preset_labels or []) if l in PRESETS]
     chosen += list(animal_labels or [])          # ชื่อสัตว์เป็นภาษาอังกฤษอยู่แล้ว
@@ -158,6 +162,13 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
                          + (" ..." if len(chosen) > 8 else ""))
         model = get_world_model(chosen)   # ตรวจจับตามรายการที่เลือก/พิมพ์
         mode_label = f"AI ตรวจจับเอง ({len(chosen)} ชนิด)"
+        if segment:
+            # YOLO-World ให้ได้แค่กรอบ ไม่มี mask — แจ้งเตือนแล้วใช้กรอบตามปกติ
+            seg_note = " | ⚠️ โหมด mask ใช้ได้เฉพาะตรวจจับ 80 ชนิดมาตรฐาน (ไม่รวมที่เลือกเอง)"
+    elif segment:
+        progress(0, desc="กำลังโหลดโมเดล segmentation ...")
+        model = get_model(SEG_MODEL)      # โมเดล seg วาด mask ขอบเขตวัตถุ
+        mode_label = f"{SEG_MODEL} (segmentation)"
     else:
         model = get_model(model_path)     # โมเดลปกติ (80 คลาส COCO)
         mode_label = Path(model_path).name
@@ -181,6 +192,8 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
     peak_counts: dict[str, int] = defaultdict(int)  # จำนวนสูงสุดที่เจอพร้อมกันในเฟรมเดียว
     processed = 0
     idx = 0
+    best_n = -1                              # เฟรมที่เจอวัตถุมากสุด (ไว้ส่งให้ Claude)
+    best_frame = None
 
     try:
         while True:
@@ -189,6 +202,7 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
                 break
             if idx % stride == 0:
                 res = model.predict(frame, conf=float(conf), device=device, verbose=False)[0]
+                plotted = res.plot()          # เฟรมที่วาดกรอบ/mask แล้ว (BGR)
                 frame_classes = Counter()
                 for b in res.boxes:
                     name = model.names[int(b.cls)]
@@ -198,7 +212,11 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
                 for name, c in frame_classes.items():
                     peak_counts[name] = max(peak_counts[name], c)
 
-                writer.write(res.plot())  # เฟรมที่วาดกรอบแล้ว (BGR)
+                if len(res.boxes) > best_n:    # จำเฟรมที่เด่นสุดไว้
+                    best_n = len(res.boxes)
+                    best_frame = plotted.copy()
+
+                writer.write(plotted)
                 processed += 1
 
                 if total:
@@ -208,6 +226,12 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
     finally:
         cap.release()
         writer.release()
+
+    # บันทึกเฟรมเด่นเป็น JPEG ไว้ให้ Claude วิเคราะห์ภายหลัง
+    keyframe_path = None
+    if best_frame is not None:
+        keyframe_path = os.path.join(tempfile.mkdtemp(), "keyframe.jpg")
+        cv2.imwrite(keyframe_path, best_frame)
 
     progress(0.99, desc="กำลังเข้ารหัสวิดีโอผลลัพธ์...")
     final_path = _reencode_h264(out_path)
@@ -226,9 +250,160 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
         f"✅ เสร็จสิ้น | โมเดล: `{mode_label}` | "
         f"ประมวลผล {processed} เฟรม (จาก {total or '?'}) | "
         f"อุปกรณ์: {'GPU — ' + GPU_NAME if device == 0 else 'CPU'} | "
-        f"พบวัตถุ {len(total_counts)} ชนิด"
+        f"พบวัตถุ {len(total_counts)} ชนิด{seg_note}"
     )
-    return final_path, df, summary
+    # ข้อมูลสำหรับสร้างรายงาน AI ด้วย Claude (ใช้ตอนกดปุ่มรายงาน)
+    report_data = {
+        "mode": mode_label,
+        "processed": processed,
+        "total_frames": total,
+        "fps": round(fps, 1),
+        "duration_sec": round((total / fps), 1) if total and fps else None,
+        "counts": [
+            {"name": n, "total": total_counts[n], "peak": peak_counts[n]}
+            for n in sorted(total_counts, key=lambda n: -total_counts[n])
+        ],
+        "keyframe": keyframe_path,
+    }
+    return final_path, df, summary, report_data
+
+
+# ── รายงานประเมินความเสี่ยงด้วย Claude AI ──────────────────────────────
+RISK_SYSTEM_PROMPT = (
+    "คุณเป็นผู้ช่วยวิเคราะห์ภาพจากกล้องสำหรับหน่วยงานราชการ หน้าที่คือประเมิน "
+    "ความเสี่ยงและความผิดปกติ จากผลการตรวจจับวัตถุด้วย AI (YOLO) ร่วมกับภาพเฟรม "
+    "ตัวอย่างที่แนบมา เขียนรายงานเป็นภาษาไทยที่เป็นทางการและกระชับ ประกอบด้วย: "
+    "(1) ระดับความเสี่ยงโดยรวม — ระบุชัดเจนว่า ต่ำ / ปานกลาง / สูง "
+    "(2) สิ่งที่ตรวจพบและการตีความ (3) ความผิดปกติหรือจุดที่ควรเฝ้าระวัง "
+    "(4) ข้อเสนอแนะ. ใช้เฉพาะข้อมูลที่เห็นจริงในภาพและตัวเลขที่ให้มา "
+    "ห้ามกุข้อมูลที่ไม่ปรากฏ หากข้อมูลไม่พอ ให้ระบุข้อจำกัดอย่างตรงไปตรงมา"
+)
+
+
+def _build_report_prompt(report_data) -> str:
+    lines = [f"โหมดการตรวจจับ: {report_data['mode']}"]
+    if report_data.get("duration_sec"):
+        lines.append(f"ความยาววิดีโอโดยประมาณ: {report_data['duration_sec']} วินาที "
+                     f"({report_data['fps']} fps)")
+    lines.append(f"จำนวนเฟรมที่ประมวลผล: {report_data['processed']}")
+    lines.append("\nสรุปวัตถุที่ตรวจพบ (เรียงตามจำนวนรวม):")
+    if report_data["counts"]:
+        for c in report_data["counts"]:
+            lines.append(f"- {c['name']}: ตรวจจับรวมทุกเฟรม {c['total']} ครั้ง, "
+                         f"สูงสุดต่อเฟรม {c['peak']}")
+    else:
+        lines.append("- ไม่พบวัตถุที่ตรวจจับได้")
+    lines.append("\nภาพที่แนบคือเฟรมที่ตรวจพบวัตถุมากที่สุด (วาดกรอบ/mask แล้ว) "
+                 "โปรดประเมินความเสี่ยงและความผิดปกติพร้อมข้อเสนอแนะ")
+    return "\n".join(lines)
+
+
+def generate_ai_report(report_data, progress=gr.Progress()):
+    if not report_data:
+        return "⚠️ กรุณากด **เริ่มประมวลผล** วิดีโอก่อน แล้วจึงสร้างรายงาน"
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return ("### ⚠️ ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY\n\n"
+                "1. รับคีย์ที่ https://console.anthropic.com\n"
+                "2. เปิด PowerShell พิมพ์ (ใส่คีย์ของคุณ):\n"
+                "```\nsetx ANTHROPIC_API_KEY \"sk-ant-...\"\n```\n"
+                "3. ปิดแล้วเปิดแอปใหม่ (`run_video_ui.bat`)")
+    try:
+        import anthropic
+        import base64
+    except Exception:
+        return "⚠️ ไม่พบไลบรารี anthropic — ติดตั้งด้วย `pip install anthropic`"
+
+    progress(0.3, desc="กำลังส่งให้ Claude วิเคราะห์ ...")
+    content = []
+    kf = report_data.get("keyframe")
+    if kf and os.path.exists(kf):
+        with open(kf, "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode()
+        content.append({"type": "image", "source": {
+            "type": "base64", "media_type": "image/jpeg", "data": img_b64}})
+    content.append({"type": "text", "text": _build_report_prompt(report_data)})
+
+    try:
+        client = anthropic.Anthropic()
+        msg = client.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=3000,
+            thinking={"type": "adaptive"},
+            system=RISK_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": content}],
+        )
+    except anthropic.AuthenticationError:
+        return "⚠️ ANTHROPIC_API_KEY ไม่ถูกต้อง — โปรดตรวจสอบคีย์อีกครั้ง"
+    except anthropic.APIError as e:
+        return f"⚠️ เรียก Claude ไม่สำเร็จ: {e}"
+    except Exception as e:
+        return f"⚠️ เกิดข้อผิดพลาด: {e}"
+
+    text = "".join(b.text for b in msg.content if b.type == "text")
+    return "## 📝 รายงานประเมินความเสี่ยง (วิเคราะห์โดย Claude AI)\n\n" + text
+
+
+# ── หน้า "รายงานผล" — รวบรวมผลการวิเคราะห์ล่าสุดเป็นเอกสารทางการ ──────
+_TH_MONTHS = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+              "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+
+
+def _thai_now() -> str:
+    n = datetime.now()
+    return f"{n.day} {_TH_MONTHS[n.month]} {n.year + 543} เวลา {n:%H:%M} น."
+
+
+def build_report_page(report_data, ai_text):
+    """คืนค่า (HTML หัวรายงาน+KPI, DataFrame ตาราง, Markdown รายงาน AI)"""
+    empty_df = pd.DataFrame(
+        columns=["วัตถุ (class)", "ตรวจจับรวม (ทุกเฟรม)", "สูงสุดต่อเฟรม"])
+    if not report_data:
+        html = ('<div class="status-box">ยังไม่มีผลการวิเคราะห์ — กรุณาไปที่แท็บ '
+                '<b>“วิเคราะห์วิดีโอ”</b> อัปโหลดวิดีโอและกด “เริ่มประมวลผล” ก่อน '
+                'แล้วจึงกลับมาที่หน้านี้</div>')
+        return html, empty_df, ""
+
+    counts = report_data["counts"]
+    total_species = len(counts)
+    total_det = sum(c["total"] for c in counts)
+    peak_all = max((c["peak"] for c in counts), default=0)
+    dur = report_data.get("duration_sec")
+
+    def kpi(value, label):
+        return (f'<div class="kpi"><div class="kpi-v">{value}</div>'
+                f'<div class="kpi-l">{label}</div></div>')
+
+    kpis = "".join([
+        kpi(total_species, "ชนิดวัตถุที่พบ"),
+        kpi(f"{total_det:,}", "การตรวจจับรวม (ทุกเฟรม)"),
+        kpi(peak_all, "สูงสุดพร้อมกัน/เฟรม"),
+        kpi(report_data["processed"], "เฟรมที่ประมวลผล"),
+    ])
+    meta = (
+        f'<div class="rpt-meta"><span><b>วันที่ออกรายงาน:</b> {_thai_now()}</span>'
+        f'<span><b>โหมดตรวจจับ:</b> {report_data["mode"]}</span>'
+        + (f'<span><b>ความยาววิดีโอ:</b> {dur} วินาที ({report_data["fps"]} fps)</span>'
+           if dur else "")
+        + '</div>'
+    )
+    html = (
+        '<div class="rpt-doc">'
+        '<div class="rpt-head"><div class="rpt-emblem">🛡️</div>'
+        '<div><div class="rpt-org">AIDC TECH</div>'
+        '<div class="rpt-title">รายงานผลการวิเคราะห์วิดีโอด้วยปัญญาประดิษฐ์</div></div></div>'
+        + meta
+        + f'<div class="kpi-row">{kpis}</div>'
+        '</div>'
+    )
+
+    rows = [{"วัตถุ (class)": c["name"], "ตรวจจับรวม (ทุกเฟรม)": c["total"],
+             "สูงสุดต่อเฟรม": c["peak"]} for c in counts]
+    df = pd.DataFrame(rows) if rows else empty_df
+
+    ai_md = ai_text or ("> ยังไม่ได้สร้างรายงานประเมินความเสี่ยงด้วย AI — "
+                        "กดปุ่ม “สร้างรายงานประเมินความเสี่ยง (Claude AI)” "
+                        "ในแท็บวิเคราะห์วิดีโอ")
+    return html, df, ai_md
 
 
 THEME = gr.themes.Soft(
@@ -244,62 +419,92 @@ _dot = "#22c55e" if HAS_CUDA else "#94a3b8"
 _badge = ("พร้อมใช้งาน · GPU" if HAS_CUDA else "พร้อมใช้งาน · CPU")
 
 CSS = """
-.gradio-container {max-width: 1200px !important; margin: auto !important;}
+:root {
+  --navy:#0e2a5e; --navy-700:#143a73; --navy-600:#16407f; --navy-900:#0b2350;
+  --gold:#c9a14a; --gold-soft:#e3c97e; --ink:#1f2a44; --muted:#5b6b86;
+  --line:#dde4ef; --page:#eef1f6;
+}
+.gradio-container {max-width:1240px !important; margin:auto !important;
+  background:var(--page) !important; padding:18px 16px 0 !important;}
 footer {display:none !important;}
+.gradio-container * {font-feature-settings:"liga" 1;}
 
-/* ── หัวระบบแบบราชการ ─────────────────────────────────── */
-.gov-header {
-  display:flex; align-items:center; gap:18px;
-  padding:20px 26px; margin-bottom:14px; color:#fff;
-  background:linear-gradient(180deg,#16407f 0%,#0e2a5e 100%);
-  border-top:4px solid #c9a14a; border-radius:10px;
-  box-shadow:0 6px 18px rgba(14,42,94,.25);
-}
-.gov-emblem {
-  width:58px; height:58px; flex:0 0 58px; border-radius:50%;
-  background:rgba(255,255,255,.12); border:2px solid #c9a14a;
-  display:flex; align-items:center; justify-content:center; font-size:30px;
-}
-.gov-titles .org {font-size:12px; letter-spacing:2.5px; text-transform:uppercase;
-  color:#cfe0ff; font-weight:600;}
-.gov-titles h1 {margin:2px 0 0; font-size:22px; font-weight:700; color:#fff; line-height:1.3;}
-.gov-titles .sub {margin:3px 0 0; font-size:12.5px; color:#a9bce0;}
-.gov-status {margin-left:auto; text-align:right; font-size:11.5px; color:#cdd9f2;
-  white-space:nowrap;}
-.gov-status .badge {display:inline-flex; align-items:center; gap:8px; margin-top:5px;
-  background:rgba(255,255,255,.1); border:1px solid rgba(201,161,74,.55);
-  padding:6px 13px; border-radius:6px; font-weight:600; color:#fff; font-size:12.5px;}
-.gov-status .dot {width:8px; height:8px; border-radius:50%; background:%DOT%;
-  box-shadow:0 0 0 3px rgba(34,197,94,.25);}
+/* ── แถบ utility ด้านบน ───────────────────────────────── */
+.app-ubar {display:flex; align-items:center; justify-content:space-between;
+  background:var(--navy-900); color:#c5d4ef; font-size:11.5px; letter-spacing:.3px;
+  padding:6px 16px; border-radius:8px 8px 0 0; border-bottom:1px solid rgba(255,255,255,.08);}
+.app-ubar .ub-right {display:inline-flex; align-items:center; gap:7px; color:#e8eefc; font-weight:600;}
+.app-ubar .ub-dot {width:8px; height:8px; border-radius:50%; background:%DOT%;
+  box-shadow:0 0 0 3px rgba(34,197,94,.22);}
+
+/* ── masthead ─────────────────────────────────────────── */
+.app-masthead {display:flex; align-items:center; gap:18px; color:#fff;
+  padding:18px 26px; background:linear-gradient(180deg,var(--navy-600),var(--navy));
+  border-left:1px solid rgba(255,255,255,.06); border-right:1px solid rgba(255,255,255,.06);}
+.app-masthead .mh-emblem {width:60px; height:60px; flex:0 0 60px; border-radius:50%;
+  background:rgba(255,255,255,.10); border:2px solid var(--gold); display:flex;
+  align-items:center; justify-content:center; font-size:31px;
+  box-shadow:0 0 0 5px rgba(201,161,74,.12);}
+.app-masthead .org {font-size:12px; letter-spacing:3px; color:var(--gold-soft); font-weight:700;}
+.app-masthead h1 {margin:3px 0 0; font-size:22px; font-weight:700; color:#fff; line-height:1.3;}
+.app-masthead .sub {margin:3px 0 0; font-size:12.5px; color:#a9bce0;}
+.app-masthead .mh-ver {margin-left:auto; text-align:right; font-size:12px; color:#cdd9f2;
+  border-left:1px solid rgba(255,255,255,.15); padding-left:18px; line-height:1.7;}
+.app-masthead .mh-ver b {color:#fff; font-size:13px;}
+
+/* ── แถบเมนูระบบ ──────────────────────────────────────── */
+.app-nav {display:flex; gap:4px; background:var(--navy-700); padding:0 14px;
+  border-radius:0 0 8px 8px; border-top:3px solid var(--gold);
+  box-shadow:0 8px 22px rgba(14,42,94,.22);}
+.app-nav .nav-item {color:#bcd0f0; font-size:13px; font-weight:600; padding:11px 16px;
+  border-bottom:3px solid transparent; margin-bottom:-3px;}
+.app-nav .nav-item.active {color:#fff; border-bottom-color:var(--gold); background:rgba(255,255,255,.06);}
+
+/* ── แถบชื่อหน้า / breadcrumb ─────────────────────────── */
+.page-head {display:flex; align-items:center; justify-content:space-between;
+  margin:14px 0 14px; flex-wrap:wrap; gap:8px;
+  background:linear-gradient(180deg,var(--navy-600),var(--navy));
+  padding:14px 20px; border-radius:9px; border-left:5px solid var(--gold);
+  box-shadow:0 4px 14px rgba(14,42,94,.20);}
+.page-head .pg-title {font-size:18px; font-weight:700; color:#ffffff;}
+.page-head .crumb {font-size:12px; color:#dbe5f7;}
+.page-head .crumb b {color:#ffffff;}
 
 /* ── การ์ด ───────────────────────────────────────────── */
 .card {border-radius:10px !important; background:#fff !important;
-  border:1px solid #dbe2ee !important; box-shadow:0 2px 8px rgba(16,42,94,.05) !important;
-  padding:14px 16px !important;}
-.section-title {font-weight:700 !important; font-size:14px !important; color:#13366e !important;
-  border-left:4px solid #c9a14a; padding-left:9px !important; margin:0 0 9px !important;}
+  border:1px solid var(--line) !important;
+  box-shadow:0 1px 2px rgba(16,42,94,.04), 0 8px 24px rgba(16,42,94,.05) !important;
+  padding:16px 18px !important; overflow:visible !important;}
+.section-title {font-weight:700 !important; font-size:14.5px !important; color:var(--navy) !important;
+  border-left:4px solid var(--gold); padding-left:10px !important;
+  margin:0 0 11px !important; letter-spacing:.2px;}
 
 /* ── ปุ่มหลัก ─────────────────────────────────────────── */
-.run-btn {background:linear-gradient(180deg,#16407f,#0e2a5e) !important;
-  border:1px solid #0a214b !important; color:#fff !important; font-weight:700 !important;
-  font-size:15.5px !important; border-radius:8px !important; padding:14px !important;
-  margin-top:4px !important; box-shadow:0 4px 12px rgba(14,42,94,.3) !important;
-  transition:filter .12s ease;}
-.run-btn:hover {filter:brightness(1.1);}
+.run-btn {background:linear-gradient(180deg,var(--navy-600),var(--navy)) !important;
+  border:1px solid var(--navy-900) !important; color:#fff !important; font-weight:700 !important;
+  font-size:16px !important; letter-spacing:.4px; border-radius:9px !important;
+  padding:15px !important; margin-top:6px !important;
+  box-shadow:0 6px 16px rgba(14,42,94,.32) !important; transition:transform .12s, filter .12s;}
+.run-btn:hover {filter:brightness(1.12); transform:translateY(-1px);}
 
-.status-box {border-radius:8px !important; padding:13px 16px !important; color:#1e293b !important;
-  background:#eef3fb !important; border:1px solid #cfdcf2 !important;
-  border-left:4px solid #13366e !important; font-size:14px !important;}
+.ai-btn {background:linear-gradient(180deg,#fffaf0,#fbf3df) !important;
+  border:1px solid var(--gold) !important; color:#7a5f24 !important; font-weight:700 !important;
+  border-radius:9px !important; padding:12px !important;}
+.ai-btn:hover {background:#f7ecd3 !important;}
 
-.hint {font-size:12.5px !important; color:#5b6b86 !important; margin:4px 2px 0 !important;}
-.quick-btn {border-radius:6px !important; font-size:12.5px !important; font-weight:600 !important;
+.status-box {border-radius:9px !important; padding:14px 16px !important; color:var(--ink) !important;
+  background:linear-gradient(180deg,#f3f7fd,#eef3fb) !important; border:1px solid #cfdcf2 !important;
+  border-left:4px solid var(--navy) !important; font-size:14px !important; line-height:1.7;}
+
+.hint {font-size:12.5px !important; color:var(--muted) !important; margin:4px 2px 2px !important;}
+.quick-btn {border-radius:7px !important; font-size:12.5px !important; font-weight:600 !important;
   background:#eef2f8 !important; border:1px solid #d4ddec !important; color:#274472 !important;
   min-width:0 !important; padding:7px 12px !important;}
-.quick-btn:hover {background:#13366e !important; border-color:#13366e !important; color:#fff !important;}
+.quick-btn:hover {background:var(--navy) !important; border-color:var(--navy) !important; color:#fff !important;}
 
 /* ── หัวข้อหมวด + ตาราง grid ของรายการวัตถุ ───────────── */
 .cat-title {font-size:12.5px !important; font-weight:700 !important; color:#274472 !important;
-  margin:11px 2px 3px !important;}
+  margin:12px 2px 4px !important;}
 .preset-group div[data-testid="checkbox-group"] {
   display:grid !important; grid-template-columns:repeat(2, minmax(0,1fr)) !important;
   gap:7px !important;}
@@ -310,40 +515,99 @@ footer {display:none !important;}
 .preset-group div[data-testid="checkbox-group"] label:hover {
   border-color:#9db4d8 !important; background:#f1f5fb !important;}
 .preset-group div[data-testid="checkbox-group"] label:has(input:checked) {
-  border-color:#13366e !important; background:#e8eff8 !important;
-  box-shadow:inset 0 0 0 1px #13366e !important;}
+  border-color:var(--navy) !important; background:#e8eff8 !important;
+  box-shadow:inset 0 0 0 1px var(--navy) !important;}
 
-/* ── dropdown รายการสัตว์: กันการ์ดบังป๊อปอัป + ยกชั้นรายการ ── */
-.card {overflow:visible !important;}
+/* ── dropdown รายการสัตว์: กันการ์ดบังป๊อปอัป ───────────── */
 .animal-dd, .animal-dd * {overflow:visible !important;}
 .animal-dd .options, .options {z-index:80 !important;}
 
-/* ── ส่วนท้าย ─────────────────────────────────────────── */
-.gov-footer {text-align:center; color:#64748b; font-size:12px; line-height:1.7;
-  padding:16px 0 6px; margin-top:12px; border-top:1px solid #dbe2ee;}
-.gov-footer b {color:#13366e;}
+/* ── แท็บระบบแบบราชการ (ใช้แทนแถบเมนู) ─────────────────── */
+.gov-tabs {border-top:3px solid var(--gold) !important; border-radius:0 0 8px 8px !important;
+  background:var(--navy-700) !important; box-shadow:0 8px 22px rgba(14,42,94,.22) !important;
+  margin-bottom:6px !important;}
+.gov-tabs .tab-nav, .gov-tabs [role="tablist"] {background:transparent !important;
+  border:none !important; padding:0 10px !important; gap:2px !important;}
+.gov-tabs button[role="tab"] {color:#bcd0f0 !important; font-weight:600 !important;
+  font-size:13.5px !important; background:transparent !important; border:none !important;
+  border-bottom:3px solid transparent !important; padding:12px 18px !important; margin-bottom:-3px !important;}
+.gov-tabs button[role="tab"]:hover {color:#fff !important; background:rgba(255,255,255,.05) !important;}
+.gov-tabs button[role="tab"].selected {color:#fff !important;
+  border-bottom-color:var(--gold) !important; background:rgba(255,255,255,.07) !important;}
+
+/* ── การ์ด KPI + เอกสารรายงาน ─────────────────────────── */
+.rpt-doc {background:#fff; border:1px solid var(--line); border-top:4px solid var(--gold);
+  border-radius:10px; padding:22px 24px; box-shadow:0 8px 24px rgba(16,42,94,.06);}
+.rpt-head {display:flex; align-items:center; gap:16px; border-bottom:1px solid var(--line);
+  padding-bottom:14px; margin-bottom:14px;}
+.rpt-emblem {width:52px; height:52px; flex:0 0 52px; border-radius:50%; font-size:27px;
+  display:flex; align-items:center; justify-content:center;
+  background:#f3f6fc; border:2px solid var(--gold);}
+.rpt-org {font-size:12px; letter-spacing:3px; color:var(--gold); font-weight:700;}
+.rpt-title {font-size:19px; font-weight:700; color:var(--navy); margin-top:2px;}
+.rpt-meta {display:flex; flex-wrap:wrap; gap:8px 26px; font-size:12.5px; color:var(--muted);
+  margin-bottom:16px;}
+.rpt-meta b {color:var(--navy-600); font-weight:600;}
+.kpi-row {display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;}
+.kpi {background:linear-gradient(180deg,#f7f9fd,#eef3fb); border:1px solid #d8e2f0;
+  border-radius:9px; padding:15px 14px; text-align:center;}
+.kpi-v {font-size:26px; font-weight:800; color:var(--navy); line-height:1.1;}
+.kpi-l {font-size:11.5px; color:var(--muted); margin-top:5px;}
+@media (max-width:760px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
+
+/* ── ส่วนท้าย (footer หลายคอลัมน์) ─────────────────────── */
+.app-footer {margin-top:18px; border-radius:10px; overflow:hidden;
+  border:1px solid var(--line); background:#fff;}
+.app-footer .ft-cols {display:flex; flex-wrap:wrap; gap:24px; padding:20px 26px;
+  background:linear-gradient(180deg,#f7f9fc,#fff);}
+.app-footer .ft-col {flex:1 1 200px; font-size:12.5px; color:var(--muted); line-height:1.8;}
+.app-footer .ft-h {font-size:13px; font-weight:700; color:var(--navy);
+  border-bottom:2px solid var(--gold); padding-bottom:5px; margin-bottom:8px; display:inline-block;}
+.app-footer .ft-base {background:var(--navy-900); color:#aebfdd; font-size:11.5px;
+  text-align:center; padding:10px 16px; letter-spacing:.3px;}
 """
 CSS = CSS.replace("%DOT%", _dot)
 
 HERO = f"""
-<div class="gov-header">
-  <div class="gov-emblem">🛡️</div>
-  <div class="gov-titles">
-    <div class="org">AIDC Tech</div>
-    <h1>ລະບົບປະມວນຜົນ ແລະ ວິເຄາະວິດີໂອດ້ວຍປັນຍາປະດິດ</h1>
+<div class="app-ubar">
+  <div class="ub-left">ระบบสารสนเทศองค์กร · AIDC Tech</div>
+  <div class="ub-right"><span class="ub-dot"></span> {_badge}</div>
+</div>
+<div class="app-masthead">
+  <div class="mh-emblem">🛡️</div>
+  <div class="mh-titles">
+    <div class="org">AIDC TECH</div>
+    <h1>ລະບົບປະມວນຜົນ ແລະ ວິເຄາะວິດີໂອດ້ວຍປັນຍາປະດິດ</h1>
     <div class="sub">AIDC Tech Video Processor — AI Video Analytics System</div>
   </div>
-  <div class="gov-status">
-    สถานะระบบประมวลผล
-    <div class="badge"><span class="dot"></span> {_badge}</div>
-  </div>
+  <div class="mh-ver"><b>เวอร์ชัน 1.0</b><br>ระบบวิเคราะห์อัจฉริยะ</div>
+</div>
+"""
+
+PAGE_HEAD = """
+<div class="page-head">
+  <div class="pg-title">การวิเคราะห์วิดีโอด้วยปัญญาประดิษฐ์</div>
+  <div class="crumb">หน้าหลัก › ระบบวิเคราะห์วิดีโอ › <b>ประมวลผล</b></div>
 </div>
 """
 
 FOOTER = """
-<div class="gov-footer">
-  <b>AIDC Tech</b> · ระบบวิเคราะห์วิดีโออัจฉริยะ · เวอร์ชัน 1.0<br>
-  ขับเคลื่อนด้วยเทคโนโลยี Ultralytics YOLO — สงวนลิขสิทธิ์ &copy; 2569
+<div class="app-footer">
+  <div class="ft-cols">
+    <div class="ft-col">
+      <div class="ft-h">AIDC Tech</div>
+      ระบบวิเคราะห์วิดีโออัจฉริยะ<br>สำหรับหน่วยงานภาครัฐ
+    </div>
+    <div class="ft-col">
+      <div class="ft-h">เกี่ยวกับระบบ</div>
+      เวอร์ชัน 1.0<br>ขับเคลื่อนด้วย Ultralytics YOLO และ Claude AI
+    </div>
+    <div class="ft-col">
+      <div class="ft-h">การสนับสนุน</div>
+      ติดต่อผู้ดูแลระบบ<br>คู่มือและเอกสารการใช้งาน
+    </div>
+  </div>
+  <div class="ft-base">สงวนลิขสิทธิ์ &copy; 2569 AIDC Tech · เพื่อการใช้งานภายในหน่วยงาน</div>
 </div>
 """
 
@@ -355,65 +619,102 @@ WELCOME = (
 
 with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
     gr.HTML(HERO)
-    with gr.Row(equal_height=False):
-        # ───────── ฝั่งซ้าย: ตั้งค่า ─────────
-        with gr.Column(scale=4):
+
+    report_state = gr.State(None)      # ผลตรวจจับล่าสุด (แชร์ข้ามแท็บ)
+    ai_report_state = gr.State("")     # ข้อความรายงาน AI ล่าสุด
+
+    with gr.Tabs(elem_classes="gov-tabs"):
+        # ═════════ แท็บที่ 1: วิเคราะห์วิดีโอ ═════════
+        with gr.Tab("วิเคราะห์วิดีโอ"):
+            gr.HTML(PAGE_HEAD)
+            with gr.Row(equal_height=False):
+                # ───────── ฝั่งซ้าย: ตั้งค่า ─────────
+                with gr.Column(scale=4):
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("ไฟล์วิดีโอนำเข้า", elem_classes="section-title")
+                        video_in = gr.Video(label="", height=210)
+
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("รายการวัตถุที่ต้องการตรวจจับ", elem_classes="section-title")
+                        gr.Markdown("**ชุดสำเร็จรูป** (กดเลือกทีเดียวหลายอย่าง):",
+                                    elem_classes="hint")
+                        with gr.Row():
+                            quick_btns = [gr.Button(name, size="sm", elem_classes="quick-btn")
+                                          for name in QUICK_SETS]
+                        # CheckboxGroup แยกตามหมวด เรียงเป็นตาราง grid 2 คอลัมน์
+                        preset_groups = []
+                        for cat_label, items in CATEGORIES.items():
+                            gr.Markdown(cat_label, elem_classes="cat-title")
+                            cg = gr.CheckboxGroup(
+                                choices=list(items.keys()), value=[], show_label=False,
+                                container=False, elem_classes="preset-group")
+                            preset_groups.append(cg)
+
+                        gr.Markdown(f"สัตว์ (รายการละเอียด {len(ANIMALS)} ชนิด)",
+                                    elem_classes="cat-title")
+                        animal_dd = gr.Dropdown(
+                            choices=ANIMALS, value=[], multiselect=True, filterable=True,
+                            show_label=False, elem_classes="animal-dd",
+                            info="พิมพ์ค้นหาชื่อสัตว์ (ภาษาอังกฤษ) แล้วเลือกได้หลายชนิด")
+
+                        custom_tb = gr.Textbox(
+                            label="เพิ่มเอง (พิมพ์ภาษาอังกฤษ คั่นด้วย ,)",
+                            placeholder="เช่น: bridge, waterfall, helicopter",
+                            info="ติ๊กหรือพิมพ์อย่างใดอย่างหนึ่ง = ใช้ AI ตรวจจับตามนั้น | "
+                                 "ไม่เลือกอะไรเลย = ใช้โมเดลปกติ 80 ชนิด",
+                        )
+                        model_dd = gr.Dropdown(
+                            find_models(), value=find_models()[0],
+                            label="โมเดล .pt (ใช้เมื่อไม่ได้เลือก/พิมพ์อะไร)")
+
+                    with gr.Accordion("ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
+                        conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
+                                            label="ความมั่นใจขั้นต่ำ (confidence)")
+                        stride_sl = gr.Slider(1, 10, value=1, step=1,
+                                              label="ประมวลผลทุก ๆ N เฟรม (เพิ่ม = เร็วขึ้น)")
+                        gpu_ck = gr.Checkbox(value=HAS_CUDA, label="ใช้ GPU เร่งความเร็ว",
+                                             interactive=HAS_CUDA)
+
+                    seg_ck = gr.Checkbox(
+                        value=False,
+                        label="🎭 แสดงขอบเขตวัตถุแบบ mask (segmentation)",
+                        info="วาดพื้นที่วัตถุระบายสี ไม่ใช่แค่กรอบ — ใช้ได้กับการตรวจจับ "
+                             "80 ชนิดมาตรฐาน (ครั้งแรกจะดาวน์โหลดโมเดล seg เล็ก ๆ)")
+
+                    run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
+
+                # ───────── ฝั่งขวา: ผลลัพธ์ ─────────
+                with gr.Column(scale=6):
+                    status = gr.HTML(WELCOME)
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("วิดีโอผลการประมวลผล", elem_classes="section-title")
+                        video_out = gr.Video(label="", height=360)
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("สรุปผลการตรวจจับ", elem_classes="section-title")
+                        table_out = gr.Dataframe(label="", interactive=False, wrap=True)
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("รายงานวิเคราะห์ด้วย AI", elem_classes="section-title")
+                        report_btn = gr.Button("📝 สร้างรายงานประเมินความเสี่ยง (Claude AI)",
+                                               elem_classes="ai-btn")
+                        report_md = gr.Markdown("")
+
+        # ═════════ แท็บที่ 2: รายงานผล ═════════
+        with gr.Tab("รายงานผล") as report_tab:
+            gr.HTML('<div class="page-head"><div class="pg-title">รายงานผลการวิเคราะห์</div>'
+                    '<div class="crumb">หน้าหลัก › <b>รายงานผล</b></div></div>')
+            with gr.Row():
+                load_report_btn = gr.Button("🔄 โหลดผลการวิเคราะห์ล่าสุด",
+                                            elem_classes="ai-btn")
+            report_page_html = gr.HTML(
+                '<div class="status-box">กดปุ่ม “โหลดผลการวิเคราะห์ล่าสุด” '
+                'เพื่อแสดงรายงาน (หรือสลับมาที่แท็บนี้หลังประมวลผลเสร็จ)</div>')
             with gr.Group(elem_classes="card"):
-                gr.Markdown("ไฟล์วิดีโอนำเข้า", elem_classes="section-title")
-                video_in = gr.Video(label="", height=210)
-
+                gr.Markdown("ตารางสรุปการตรวจจับ", elem_classes="section-title")
+                report_table = gr.Dataframe(label="", interactive=False, wrap=True)
             with gr.Group(elem_classes="card"):
-                gr.Markdown("รายการวัตถุที่ต้องการตรวจจับ", elem_classes="section-title")
-                gr.Markdown("**ชุดสำเร็จรูป** (กดเลือกทีเดียวหลายอย่าง):",
-                            elem_classes="hint")
-                with gr.Row():
-                    quick_btns = [gr.Button(name, size="sm", elem_classes="quick-btn")
-                                  for name in QUICK_SETS]
-                # CheckboxGroup แยกตามหมวด เรียงเป็นตาราง grid 2 คอลัมน์
-                preset_groups = []
-                for cat_label, items in CATEGORIES.items():
-                    gr.Markdown(cat_label, elem_classes="cat-title")
-                    cg = gr.CheckboxGroup(
-                        choices=list(items.keys()), value=[], show_label=False,
-                        container=False, elem_classes="preset-group")
-                    preset_groups.append(cg)
-
-                gr.Markdown(f"สัตว์ (รายการละเอียด {len(ANIMALS)} ชนิด)",
-                            elem_classes="cat-title")
-                animal_dd = gr.Dropdown(
-                    choices=ANIMALS, value=[], multiselect=True, filterable=True,
-                    show_label=False, elem_classes="animal-dd",
-                    info="พิมพ์ค้นหาชื่อสัตว์ (ภาษาอังกฤษ) แล้วเลือกได้หลายชนิด")
-
-                custom_tb = gr.Textbox(
-                    label="เพิ่มเอง (พิมพ์ภาษาอังกฤษ คั่นด้วย ,)",
-                    placeholder="เช่น: bridge, waterfall, helicopter",
-                    info="ติ๊กหรือพิมพ์อย่างใดอย่างหนึ่ง = ใช้ AI ตรวจจับตามนั้น | "
-                         "ไม่เลือกอะไรเลย = ใช้โมเดลปกติ 80 ชนิด",
-                )
-                model_dd = gr.Dropdown(
-                    find_models(), value=find_models()[0],
-                    label="โมเดล .pt (ใช้เมื่อไม่ได้เลือก/พิมพ์อะไร)")
-
-            with gr.Accordion("ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
-                conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
-                                    label="ความมั่นใจขั้นต่ำ (confidence)")
-                stride_sl = gr.Slider(1, 10, value=1, step=1,
-                                      label="ประมวลผลทุก ๆ N เฟรม (เพิ่ม = เร็วขึ้น)")
-                gpu_ck = gr.Checkbox(value=HAS_CUDA, label="ใช้ GPU เร่งความเร็ว",
-                                     interactive=HAS_CUDA)
-
-            run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
-
-        # ───────── ฝั่งขวา: ผลลัพธ์ ─────────
-        with gr.Column(scale=6):
-            status = gr.HTML(WELCOME)
-            with gr.Group(elem_classes="card"):
-                gr.Markdown("วิดีโอผลการประมวลผล", elem_classes="section-title")
-                video_out = gr.Video(label="", height=360)
-            with gr.Group(elem_classes="card"):
-                gr.Markdown("สรุปผลการตรวจจับ", elem_classes="section-title")
-                table_out = gr.Dataframe(label="", interactive=False, wrap=True)
+                gr.Markdown("รายงานประเมินความเสี่ยง (วิเคราะห์โดย AI)",
+                            elem_classes="section-title")
+                report_ai_md = gr.Markdown("")
 
     gr.HTML(FOOTER)
 
@@ -436,19 +737,35 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
 
     def _run(video, model_path, *rest, progress=gr.Progress()):
         group_vals = rest[:n_groups]
-        animal_labels, custom_classes, conf, use_gpu, stride = rest[n_groups:]
+        animal_labels, custom_classes, segment, conf, use_gpu, stride = rest[n_groups:]
         preset_labels = [x for vals in group_vals for x in (vals or [])]
-        video_out_, table, summary = process_video(
+        video_out_, table, summary, report_data = process_video(
             video, model_path, preset_labels, animal_labels, custom_classes,
-            conf, use_gpu, stride, progress=progress)
-        return video_out_, table, f'<div class="status-box">{summary}</div>'
+            segment, conf, use_gpu, stride, progress=progress)
+        # คืนค่ารายงานเปล่า (ล้างของเก่า) + เก็บ report_data ไว้ใน State
+        return (video_out_, table, f'<div class="status-box">{summary}</div>',
+                report_data, "")
 
     run_btn.click(
         _run,
         inputs=[video_in, model_dd, *preset_groups, animal_dd, custom_tb,
-                conf_sl, gpu_ck, stride_sl],
-        outputs=[video_out, table_out, status],
+                seg_ck, conf_sl, gpu_ck, stride_sl],
+        outputs=[video_out, table_out, status, report_state, report_md],
     )
+
+    def _gen_report(report_data, progress=gr.Progress()):
+        text = generate_ai_report(report_data, progress)
+        return text, text   # แสดงในแท็บวิเคราะห์ + เก็บไว้ใช้ในหน้ารายงาน
+
+    report_btn.click(_gen_report, inputs=report_state,
+                     outputs=[report_md, ai_report_state])
+
+    # หน้า "รายงานผล": โหลดด้วยปุ่ม หรืออัตโนมัติเมื่อสลับมาที่แท็บ
+    _report_outputs = [report_page_html, report_table, report_ai_md]
+    load_report_btn.click(build_report_page,
+                          inputs=[report_state, ai_report_state], outputs=_report_outputs)
+    report_tab.select(build_report_page,
+                      inputs=[report_state, ai_report_state], outputs=_report_outputs)
 
 
 if __name__ == "__main__":
