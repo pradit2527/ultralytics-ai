@@ -126,18 +126,27 @@ def parse_classes(text: str) -> list[str]:
     return [c.strip() for c in (text or "").replace("\n", ",").split(",") if c.strip()]
 
 
-def _has_ffmpeg() -> bool:
-    return shutil.which("ffmpeg") is not None
+def _ffmpeg_exe():
+    """หา ffmpeg: ใช้ของระบบก่อน ไม่มีก็ใช้ตัวที่มากับ imageio-ffmpeg"""
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
 
 
 def _reencode_h264(src: str) -> str:
-    """แปลงเป็น H.264 ให้เบราว์เซอร์เล่นได้ลื่น (ถ้ามี ffmpeg)"""
-    if not _has_ffmpeg():
+    """แปลงเป็น H.264 ให้เบราว์เซอร์เล่นในหน้าเว็บได้ (เล่นปุ่ม play ได้ทันที)"""
+    exe = _ffmpeg_exe()
+    if not exe:
         return src
     dst = src.replace(".mp4", "_h264.mp4")
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-i", src, "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            [exe, "-y", "-i", src, "-c:v", "libx264", "-pix_fmt", "yuv420p",
              "-movflags", "+faststart", "-an", dst],
             check=True, capture_output=True,
         )
