@@ -1,0 +1,47 @@
+# ============================================================
+#  AIDC Tech Video Processor — Python dependencies
+#  Python 3.10 - 3.14
+# ============================================================
+#
+#  วิธีติดตั้ง (ทางที่ง่ายสุด): ดับเบิลคลิก install_ultralytics.bat
+#  ก่อน (จะลง torch แบบ CUDA ให้) แล้วค่อย:
+#      pip install -r requirements.txt
+#
+#  หรือติดตั้งเองทั้งหมด:
+#    1) PyTorch (เลือกอย่างใดอย่างหนึ่ง)
+#       - การ์ดจอ NVIDIA (CUDA):
+#           pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#       - ไม่มีการ์ดจอ (CPU เท่านั้น):
+#           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#    2) pip install -r requirements.txt
+#
+#  หมายเหตุ: บรรทัด torch ด้านล่าง pin เป็นรุ่น CUDA (cu128) — ต้องมี
+#  --extra-index-url ของ PyTorch จึงจะหาเจอ ถ้าใช้ CPU ให้ลบ "+cu128"
+#  และติดตั้ง torch จาก index cpu ตามด้านบนแทน
+# ------------------------------------------------------------
+
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+# ── PyTorch (CUDA) ──────────────────────────────────────────
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+
+# ── โมเดล/วิชันหลัก ─────────────────────────────────────────
+ultralytics==8.4.63
+opencv-python==4.13.0.92
+numpy==2.4.4
+pillow==12.2.0
+scipy==1.17.1
+lap==0.5.13                 # ใช้สำหรับ object tracking (ByteTrack)
+
+# ── เว็บ UI ─────────────────────────────────────────────────
+gradio==6.17.3
+
+# ── รายงาน AI (Claude) ──────────────────────────────────────
+anthropic==0.109.1
+
+# ── ส่งออกเอกสาร / วิดีโอ ───────────────────────────────────
+python-docx==1.2.0          # รายงาน Word (.docx)
+openpyxl==3.1.5             # ตาราง Excel (.xlsx)
+pandas==3.0.3
+imageio-ffmpeg==0.6.0       # ffmpeg ในตัว สำหรับแปลงวิดีโอเป็น H.264
