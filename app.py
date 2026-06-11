@@ -146,8 +146,21 @@ def _reencode_h264(src: str) -> str:
         return src
 
 
+def counts_to_df(counts, tracking):
+    """แปลงลิสต์ counts → DataFrame (เพิ่มคอลัมน์ ‘นับตัวจริง’ เมื่อเปิด tracking)"""
+    base_cols = ["วัตถุ (class)", "ตรวจจับรวม (ทุกเฟรม)", "สูงสุดต่อเฟรม"]
+    cols = base_cols + (["นับตัวจริง (ไม่ซ้ำ)"] if tracking else [])
+    rows = []
+    for c in (counts or []):
+        row = {base_cols[0]: c["name"], base_cols[1]: c["total"], base_cols[2]: c["peak"]}
+        if tracking:
+            row["นับตัวจริง (ไม่ซ้ำ)"] = c.get("unique") if c.get("unique") is not None else "-"
+        rows.append(row)
+    return pd.DataFrame(rows) if rows else pd.DataFrame(columns=cols)
+
+
 def process_video(video_path, model_path, preset_labels, animal_labels, custom_classes,
-                  segment, conf, use_gpu, frame_stride, progress=gr.Progress()):
+                  segment, track, conf, use_gpu, frame_stride, progress=gr.Progress()):
     if not video_path:
         raise gr.Error("กรุณาอัปโหลดไฟล์วิดีโอก่อน")
 
@@ -190,10 +203,13 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
 
     total_counts: Counter = Counter()       # รวมจำนวนตรวจจับสะสมต่อคลาส
     peak_counts: dict[str, int] = defaultdict(int)  # จำนวนสูงสุดที่เจอพร้อมกันในเฟรมเดียว
+    unique_ids: dict[str, set] = defaultdict(set)   # ID ที่ไม่ซ้ำต่อคลาส (โหมด tracking)
     processed = 0
     idx = 0
     best_n = -1                              # เฟรมที่เจอวัตถุมากสุด (ไว้ส่งให้ Claude)
     best_frame = None
+    track_on = bool(track)
+    track_active = False                     # เปิดใช้ tracking ได้จริงหรือไม่
 
     try:
         while True:
@@ -201,13 +217,28 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
             if not ok:
                 break
             if idx % stride == 0:
-                res = model.predict(frame, conf=float(conf), device=device, verbose=False)[0]
-                plotted = res.plot()          # เฟรมที่วาดกรอบ/mask แล้ว (BGR)
+                if track_on:
+                    # นับตัวจริงด้วย tracker (ByteTrack) — persist=False เฉพาะเฟรมแรกเพื่อรีเซ็ต
+                    try:
+                        res = model.track(frame, conf=float(conf), device=device,
+                                          persist=(processed > 0), tracker="bytetrack.yaml",
+                                          verbose=False)[0]
+                        track_active = True
+                    except Exception:
+                        track_on = False      # โมเดลนี้ track ไม่ได้ → ถอยไปใช้ detect
+                        res = model.predict(frame, conf=float(conf), device=device,
+                                            verbose=False)[0]
+                else:
+                    res = model.predict(frame, conf=float(conf), device=device, verbose=False)[0]
+
+                plotted = res.plot()          # เฟรมที่วาดกรอบ/mask (+ID) แล้ว (BGR)
                 frame_classes = Counter()
                 for b in res.boxes:
                     name = model.names[int(b.cls)]
                     name = PROMPT_TO_TH.get(name, name)  # แปลเป็นป้ายไทยถ้ามี
                     frame_classes[name] += 1
+                    if track_active and b.id is not None:
+                        unique_ids[name].add(int(b.id))
                 total_counts.update(frame_classes)
                 for name, c in frame_classes.items():
                     peak_counts[name] = max(peak_counts[name], c)
@@ -236,34 +267,33 @@ def process_video(video_path, model_path, preset_labels, animal_labels, custom_c
     progress(0.99, desc="กำลังเข้ารหัสวิดีโอผลลัพธ์...")
     final_path = _reencode_h264(out_path)
 
-    # ตารางสรุป
-    rows = [
-        {"วัตถุ (class)": name,
-         "ตรวจจับรวม (ทุกเฟรม)": total_counts[name],
-         "สูงสุดต่อเฟรม": peak_counts[name]}
-        for name in sorted(total_counts, key=lambda n: -total_counts[n])
+    counts = [
+        {"name": n, "total": total_counts[n], "peak": peak_counts[n],
+         "unique": (len(unique_ids[n]) if track_active else None)}
+        for n in sorted(total_counts, key=lambda n: -total_counts[n])
     ]
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(
-        columns=["วัตถุ (class)", "ตรวจจับรวม (ทุกเฟรม)", "สูงสุดต่อเฟรม"])
+    df = counts_to_df(counts, track_active)
 
+    track_note = ""
+    if track_active:
+        track_note = f" | นับตัวจริง {sum(len(s) for s in unique_ids.values())} ตัว"
     summary = (
         f"✅ เสร็จสิ้น | โมเดล: `{mode_label}` | "
         f"ประมวลผล {processed} เฟรม (จาก {total or '?'}) | "
         f"อุปกรณ์: {'GPU — ' + GPU_NAME if device == 0 else 'CPU'} | "
-        f"พบวัตถุ {len(total_counts)} ชนิด{seg_note}"
+        f"พบวัตถุ {len(total_counts)} ชนิด{track_note}{seg_note}"
     )
-    # ข้อมูลสำหรับสร้างรายงาน AI ด้วย Claude (ใช้ตอนกดปุ่มรายงาน)
+    # ข้อมูลสำหรับรายงาน/ส่งออก (ใช้ตอนกดปุ่มรายงาน, Word, Excel)
     report_data = {
         "mode": mode_label,
         "processed": processed,
         "total_frames": total,
         "fps": round(fps, 1),
         "duration_sec": round((total / fps), 1) if total and fps else None,
-        "counts": [
-            {"name": n, "total": total_counts[n], "peak": peak_counts[n]}
-            for n in sorted(total_counts, key=lambda n: -total_counts[n])
-        ],
+        "counts": counts,
+        "tracking": track_active,
         "keyframe": keyframe_path,
+        "video": final_path,
     }
     return final_path, df, summary, report_data
 
@@ -354,31 +384,32 @@ def _thai_now() -> str:
 
 
 def build_report_page(report_data, ai_text):
-    """คืนค่า (HTML หัวรายงาน+KPI, DataFrame ตาราง, Markdown รายงาน AI)"""
-    empty_df = pd.DataFrame(
-        columns=["วัตถุ (class)", "ตรวจจับรวม (ทุกเฟรม)", "สูงสุดต่อเฟรม"])
+    """คืนค่า (HTML หัว+KPI, ภาพเฟรมเด่น, DataFrame ตาราง, Markdown รายงาน AI)"""
+    empty_df = counts_to_df([], False)
     if not report_data:
         html = ('<div class="status-box">ยังไม่มีผลการวิเคราะห์ — กรุณาไปที่แท็บ '
                 '<b>“วิเคราะห์วิดีโอ”</b> อัปโหลดวิดีโอและกด “เริ่มประมวลผล” ก่อน '
                 'แล้วจึงกลับมาที่หน้านี้</div>')
-        return html, empty_df, ""
+        return html, None, empty_df, ""
 
     counts = report_data["counts"]
-    total_species = len(counts)
+    tracking = report_data.get("tracking")
     total_det = sum(c["total"] for c in counts)
     peak_all = max((c["peak"] for c in counts), default=0)
+    unique_all = sum((c.get("unique") or 0) for c in counts) if tracking else None
     dur = report_data.get("duration_sec")
 
     def kpi(value, label):
         return (f'<div class="kpi"><div class="kpi-v">{value}</div>'
                 f'<div class="kpi-l">{label}</div></div>')
 
-    kpis = "".join([
-        kpi(total_species, "ชนิดวัตถุที่พบ"),
-        kpi(f"{total_det:,}", "การตรวจจับรวม (ทุกเฟรม)"),
-        kpi(peak_all, "สูงสุดพร้อมกัน/เฟรม"),
-        kpi(report_data["processed"], "เฟรมที่ประมวลผล"),
-    ])
+    cards = [kpi(len(counts), "ชนิดวัตถุที่พบ"),
+             kpi(f"{total_det:,}", "การตรวจจับรวม (ทุกเฟรม)")]
+    if tracking:
+        cards.append(kpi(unique_all, "นับตัวจริงรวม (ไม่ซ้ำ)"))
+    cards.append(kpi(peak_all, "สูงสุดพร้อมกัน/เฟรม"))
+    cards.append(kpi(report_data["processed"], "เฟรมที่ประมวลผล"))
+
     meta = (
         f'<div class="rpt-meta"><span><b>วันที่ออกรายงาน:</b> {_thai_now()}</span>'
         f'<span><b>โหมดตรวจจับ:</b> {report_data["mode"]}</span>'
@@ -391,19 +422,119 @@ def build_report_page(report_data, ai_text):
         '<div class="rpt-head"><div class="rpt-emblem">🛡️</div>'
         '<div><div class="rpt-org">AIDC TECH</div>'
         '<div class="rpt-title">รายงานผลการวิเคราะห์วิดีโอด้วยปัญญาประดิษฐ์</div></div></div>'
-        + meta
-        + f'<div class="kpi-row">{kpis}</div>'
-        '</div>'
+        + meta + f'<div class="kpi-row">{"".join(cards)}</div></div>'
     )
 
-    rows = [{"วัตถุ (class)": c["name"], "ตรวจจับรวม (ทุกเฟรม)": c["total"],
-             "สูงสุดต่อเฟรม": c["peak"]} for c in counts]
-    df = pd.DataFrame(rows) if rows else empty_df
-
+    df = counts_to_df(counts, tracking)
+    keyframe = report_data.get("keyframe")
+    keyframe = keyframe if (keyframe and os.path.exists(keyframe)) else None
     ai_md = ai_text or ("> ยังไม่ได้สร้างรายงานประเมินความเสี่ยงด้วย AI — "
                         "กดปุ่ม “สร้างรายงานประเมินความเสี่ยง (Claude AI)” "
                         "ในแท็บวิเคราะห์วิดีโอ")
-    return html, df, ai_md
+    return html, keyframe, df, ai_md
+
+
+# ── ส่งออกเอกสาร: Word / Excel / วิดีโอ ────────────────────────────────
+def export_excel(report_data):
+    if not report_data:
+        raise gr.Error("ยังไม่มีผลการวิเคราะห์ — กรุณาประมวลผลก่อน")
+    df = counts_to_df(report_data["counts"], report_data.get("tracking"))
+    path = os.path.join(tempfile.mkdtemp(), "AIDC_detection_report.xlsx")
+    with pd.ExcelWriter(path, engine="openpyxl") as xw:
+        df.to_excel(xw, index=False, sheet_name="สรุปการตรวจจับ")
+    return path
+
+
+def export_word(report_data, ai_text):
+    if not report_data:
+        raise gr.Error("ยังไม่มีผลการวิเคราะห์ — กรุณาประมวลผลก่อน")
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+
+    doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name = "Tahoma"          # ฟอนต์รองรับภาษาไทย
+    style.font.size = Pt(14)
+    style.element.get_or_add_rPr().get_or_add_rFonts().set(qn("w:cs"), "Tahoma")
+
+    org = doc.add_paragraph()
+    org.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = org.add_run("AIDC TECH"); r.bold = True; r.font.size = Pt(12)
+    r.font.color.rgb = RGBColor(0xC9, 0xA1, 0x4A)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = title.add_run("รายงานผลการวิเคราะห์วิดีโอด้วยปัญญาประดิษฐ์")
+    r.bold = True; r.font.size = Pt(18); r.font.color.rgb = RGBColor(0x0E, 0x2A, 0x5E)
+
+    for line in [f"วันที่ออกรายงาน: {_thai_now()}",
+                 f"โหมดตรวจจับ: {report_data['mode']}",
+                 (f"ความยาววิดีโอ: {report_data['duration_sec']} วินาที "
+                  f"({report_data['fps']} fps)" if report_data.get('duration_sec') else None),
+                 f"จำนวนเฟรมที่ประมวลผล: {report_data['processed']}"]:
+        if line:
+            doc.add_paragraph(line)
+
+    doc.add_paragraph()
+    h = doc.add_paragraph(); r = h.add_run("สรุปการตรวจจับ"); r.bold = True; r.font.size = Pt(15)
+
+    counts = report_data["counts"]
+    tracking = report_data.get("tracking")
+    headers = ["วัตถุ", "ตรวจจับรวม (ทุกเฟรม)", "สูงสุดต่อเฟรม"] + \
+              (["นับตัวจริง (ไม่ซ้ำ)"] if tracking else [])
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.style = "Light Grid Accent 1"
+    for i, htext in enumerate(headers):
+        cell = table.rows[0].cells[i]
+        cell.text = htext
+        for p in cell.paragraphs:
+            for rr in p.runs:
+                rr.bold = True
+    for c in counts:
+        cells = table.add_row().cells
+        cells[0].text = str(c["name"])
+        cells[1].text = str(c["total"])
+        cells[2].text = str(c["peak"])
+        if tracking:
+            cells[3].text = str(c.get("unique") if c.get("unique") is not None else "-")
+
+    kf = report_data.get("keyframe")
+    if kf and os.path.exists(kf):
+        doc.add_paragraph()
+        h = doc.add_paragraph(); r = h.add_run("ภาพเฟรมตัวอย่าง (ตรวจพบวัตถุมากที่สุด)")
+        r.bold = True; r.font.size = Pt(15)
+        try:
+            doc.add_picture(kf, width=Inches(6))
+        except Exception:
+            pass
+
+    if ai_text:
+        doc.add_paragraph()
+        h = doc.add_paragraph(); r = h.add_run("รายงานประเมินความเสี่ยง (วิเคราะห์โดย AI)")
+        r.bold = True; r.font.size = Pt(15)
+        for ln in ai_text.splitlines():
+            ln = ln.lstrip("#").replace("**", "").strip()
+            if ln:
+                doc.add_paragraph(ln)
+
+    doc.add_paragraph()
+    foot = doc.add_paragraph("สงวนลิขสิทธิ์ © 2569 AIDC Tech · เพื่อการใช้งานภายในหน่วยงาน")
+    foot.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for rr in foot.runs:
+        rr.font.size = Pt(10); rr.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+    path = os.path.join(tempfile.mkdtemp(), "AIDC_report.docx")
+    doc.save(path)
+    return path
+
+
+def get_result_video(report_data):
+    v = (report_data or {}).get("video")
+    if not v or not os.path.exists(v):
+        raise gr.Error("ยังไม่มีวิดีโอผลลัพธ์ — กรุณาประมวลผลก่อน")
+    return v
 
 
 THEME = gr.themes.Soft(
@@ -548,12 +679,11 @@ footer {display:none !important;}
 .rpt-meta {display:flex; flex-wrap:wrap; gap:8px 26px; font-size:12.5px; color:var(--muted);
   margin-bottom:16px;}
 .rpt-meta b {color:var(--navy-600); font-weight:600;}
-.kpi-row {display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;}
+.kpi-row {display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px;}
 .kpi {background:linear-gradient(180deg,#f7f9fd,#eef3fb); border:1px solid #d8e2f0;
   border-radius:9px; padding:15px 14px; text-align:center;}
 .kpi-v {font-size:26px; font-weight:800; color:var(--navy); line-height:1.1;}
 .kpi-l {font-size:11.5px; color:var(--muted); margin-top:5px;}
-@media (max-width:760px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
 
 /* ── ส่วนท้าย (footer หลายคอลัมน์) ─────────────────────── */
 .app-footer {margin-top:18px; border-radius:10px; overflow:hidden;
@@ -680,6 +810,11 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                         label="🎭 แสดงขอบเขตวัตถุแบบ mask (segmentation)",
                         info="วาดพื้นที่วัตถุระบายสี ไม่ใช่แค่กรอบ — ใช้ได้กับการตรวจจับ "
                              "80 ชนิดมาตรฐาน (ครั้งแรกจะดาวน์โหลดโมเดล seg เล็ก ๆ)")
+                    track_ck = gr.Checkbox(
+                        value=False,
+                        label="🔢 นับจำนวนตัวจริง (object tracking)",
+                        info="ติดตามแต่ละวัตถุด้วย ID แล้วนับ ‘ตัวที่ไม่ซ้ำ’ จริง ๆ "
+                             "(แนะนำให้ตั้ง ‘ทุก ๆ N เฟรม’ = 1 เพื่อความแม่นยำ)")
 
                     run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
 
@@ -709,12 +844,25 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                 '<div class="status-box">กดปุ่ม “โหลดผลการวิเคราะห์ล่าสุด” '
                 'เพื่อแสดงรายงาน (หรือสลับมาที่แท็บนี้หลังประมวลผลเสร็จ)</div>')
             with gr.Group(elem_classes="card"):
+                gr.Markdown("ภาพเฟรมตัวอย่าง (ตรวจพบวัตถุมากที่สุด)",
+                            elem_classes="section-title")
+                report_keyframe_img = gr.Image(label="", height=320, show_label=False)
+            with gr.Group(elem_classes="card"):
                 gr.Markdown("ตารางสรุปการตรวจจับ", elem_classes="section-title")
                 report_table = gr.Dataframe(label="", interactive=False, wrap=True)
             with gr.Group(elem_classes="card"):
                 gr.Markdown("รายงานประเมินความเสี่ยง (วิเคราะห์โดย AI)",
                             elem_classes="section-title")
                 report_ai_md = gr.Markdown("")
+            with gr.Group(elem_classes="card"):
+                gr.Markdown("ส่งออกเอกสารและไฟล์", elem_classes="section-title")
+                with gr.Row():
+                    word_btn = gr.Button("📄 สร้างรายงาน Word", elem_classes="ai-btn")
+                    excel_btn = gr.Button("📊 สร้างตาราง Excel", elem_classes="ai-btn")
+                    video_btn = gr.Button("🎬 เตรียมวิดีโอผล", elem_classes="ai-btn")
+                word_file = gr.File(label="รายงาน (Word)", interactive=False)
+                excel_file = gr.File(label="ตาราง (Excel)", interactive=False)
+                video_file = gr.File(label="วิดีโอผลการประมวลผล", interactive=False)
 
     gr.HTML(FOOTER)
 
@@ -737,20 +885,21 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
 
     def _run(video, model_path, *rest, progress=gr.Progress()):
         group_vals = rest[:n_groups]
-        animal_labels, custom_classes, segment, conf, use_gpu, stride = rest[n_groups:]
+        (animal_labels, custom_classes, segment, track,
+         conf, use_gpu, stride) = rest[n_groups:]
         preset_labels = [x for vals in group_vals for x in (vals or [])]
         video_out_, table, summary, report_data = process_video(
             video, model_path, preset_labels, animal_labels, custom_classes,
-            segment, conf, use_gpu, stride, progress=progress)
-        # คืนค่ารายงานเปล่า (ล้างของเก่า) + เก็บ report_data ไว้ใน State
+            segment, track, conf, use_gpu, stride, progress=progress)
+        # ล้างรายงาน AI เก่า + เก็บ report_data ไว้ใน State
         return (video_out_, table, f'<div class="status-box">{summary}</div>',
-                report_data, "")
+                report_data, "", "")
 
     run_btn.click(
         _run,
         inputs=[video_in, model_dd, *preset_groups, animal_dd, custom_tb,
-                seg_ck, conf_sl, gpu_ck, stride_sl],
-        outputs=[video_out, table_out, status, report_state, report_md],
+                seg_ck, track_ck, conf_sl, gpu_ck, stride_sl],
+        outputs=[video_out, table_out, status, report_state, report_md, ai_report_state],
     )
 
     def _gen_report(report_data, progress=gr.Progress()):
@@ -761,11 +910,16 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                      outputs=[report_md, ai_report_state])
 
     # หน้า "รายงานผล": โหลดด้วยปุ่ม หรืออัตโนมัติเมื่อสลับมาที่แท็บ
-    _report_outputs = [report_page_html, report_table, report_ai_md]
+    _report_outputs = [report_page_html, report_keyframe_img, report_table, report_ai_md]
     load_report_btn.click(build_report_page,
                           inputs=[report_state, ai_report_state], outputs=_report_outputs)
     report_tab.select(build_report_page,
                       inputs=[report_state, ai_report_state], outputs=_report_outputs)
+
+    # ส่งออกเอกสาร/ไฟล์
+    word_btn.click(export_word, inputs=[report_state, ai_report_state], outputs=word_file)
+    excel_btn.click(export_excel, inputs=report_state, outputs=excel_file)
+    video_btn.click(get_result_video, inputs=report_state, outputs=video_file)
 
 
 if __name__ == "__main__":
