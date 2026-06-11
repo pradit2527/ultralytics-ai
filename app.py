@@ -76,6 +76,18 @@ def find_models() -> list[str]:
     return models or ["yolo26n.pt"]
 
 
+def load_animals() -> list[str]:
+    """โหลดรายชื่อสัตว์จากไฟล์ animals.txt (ใช้เป็นตัวเลือกตรวจจับแบบละเอียด)"""
+    p = ROOT / "animals.txt"
+    if p.exists():
+        return [ln.strip() for ln in p.read_text(encoding="utf-8").splitlines()
+                if ln.strip()]
+    return []
+
+
+ANIMALS = load_animals()
+
+
 def get_model(model_path: str) -> YOLO:
     if model_path not in _MODEL_CACHE:
         _MODEL_CACHE[model_path] = YOLO(model_path)
@@ -131,19 +143,21 @@ def _reencode_h264(src: str) -> str:
         return src
 
 
-def process_video(video_path, model_path, preset_labels, custom_classes, conf, use_gpu,
-                  frame_stride, progress=gr.Progress()):
+def process_video(video_path, model_path, preset_labels, animal_labels, custom_classes,
+                  conf, use_gpu, frame_stride, progress=gr.Progress()):
     if not video_path:
         raise gr.Error("กรุณาอัปโหลดไฟล์วิดีโอก่อน")
 
     device = 0 if (use_gpu and HAS_CUDA) else "cpu"
-    # รวมรายการที่ติ๊กเลือก + ที่พิมพ์เอง → ลิสต์คำสั่ง (ตัดซ้ำ คงลำดับ)
+    # รวม: หมวดที่ติ๊ก + สัตว์ที่เลือกจากรายการละเอียด + ที่พิมพ์เอง (ตัดซ้ำ คงลำดับ)
     chosen = [PRESETS[l] for l in (preset_labels or []) if l in PRESETS]
+    chosen += list(animal_labels or [])          # ชื่อสัตว์เป็นภาษาอังกฤษอยู่แล้ว
     chosen = list(dict.fromkeys(chosen + parse_classes(custom_classes)))
     if chosen:
-        progress(0, desc=f"กำลังโหลดโมเดล AI สำหรับ: {', '.join(chosen)}")
+        progress(0, desc=f"กำลังโหลดโมเดล AI สำหรับ: {', '.join(chosen[:8])}"
+                         + (" ..." if len(chosen) > 8 else ""))
         model = get_world_model(chosen)   # ตรวจจับตามรายการที่เลือก/พิมพ์
-        mode_label = "AI ตรวจจับเอง (" + ", ".join(chosen) + ")"
+        mode_label = f"AI ตรวจจับเอง ({len(chosen)} ชนิด)"
     else:
         model = get_model(model_path)     # โมเดลปกติ (80 คลาส COCO)
         mode_label = Path(model_path).name
@@ -358,6 +372,14 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                         choices=list(items.keys()), value=[], show_label=False,
                         container=False, elem_classes="preset-group")
                     preset_groups.append(cg)
+
+                gr.Markdown(f"สัตว์ (รายการละเอียด {len(ANIMALS)} ชนิด)",
+                            elem_classes="cat-title")
+                animal_dd = gr.Dropdown(
+                    choices=ANIMALS, value=[], multiselect=True, filterable=True,
+                    show_label=False, container=False,
+                    info="พิมพ์ค้นหาชื่อสัตว์ (ภาษาอังกฤษ) แล้วเลือกได้หลายชนิด")
+
                 custom_tb = gr.Textbox(
                     label="เพิ่มเอง (พิมพ์ภาษาอังกฤษ คั่นด้วย ,)",
                     placeholder="เช่น: bridge, waterfall, helicopter",
@@ -409,16 +431,16 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
 
     def _run(video, model_path, *rest, progress=gr.Progress()):
         group_vals = rest[:n_groups]
-        custom_classes, conf, use_gpu, stride = rest[n_groups:]
+        animal_labels, custom_classes, conf, use_gpu, stride = rest[n_groups:]
         preset_labels = [x for vals in group_vals for x in (vals or [])]
         video_out_, table, summary = process_video(
-            video, model_path, preset_labels, custom_classes, conf, use_gpu,
-            stride, progress=progress)
+            video, model_path, preset_labels, animal_labels, custom_classes,
+            conf, use_gpu, stride, progress=progress)
         return video_out_, table, f'<div class="status-box">{summary}</div>'
 
     run_btn.click(
         _run,
-        inputs=[video_in, model_dd, *preset_groups, custom_tb,
+        inputs=[video_in, model_dd, *preset_groups, animal_dd, custom_tb,
                 conf_sl, gpu_ck, stride_sl],
         outputs=[video_out, table_out, status],
     )
