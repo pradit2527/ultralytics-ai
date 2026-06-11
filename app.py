@@ -82,12 +82,27 @@ def get_model(model_path: str) -> YOLO:
     return _MODEL_CACHE[model_path]
 
 
+_WORLD_CLASSES: list[str] = []  # คลาสล่าสุดที่ตั้งไว้ (กันการตั้งซ้ำโดยไม่จำเป็น)
+
+
 def get_world_model(classes: list[str]) -> YOLOWorld:
     """โมเดล open-vocabulary — ตั้งคลาสตามคำที่ผู้ใช้พิมพ์ (เช่น tree, dog)"""
     if WORLD_MODEL not in _MODEL_CACHE:
         _MODEL_CACHE[WORLD_MODEL] = YOLOWorld(WORLD_MODEL)
     model = _MODEL_CACHE[WORLD_MODEL]
-    model.set_classes(classes)
+    if list(classes) != _WORLD_CLASSES:
+        # set_classes() ต้องเข้ารหัสข้อความด้วย CLIP ก่อน — ต้องทำบน CPU เสมอ
+        # ไม่งั้นจะเจอบั๊ก "tensors on different devices": CLIP ถูกย้ายไป GPU
+        # จากการ predict รอบก่อน แต่ token ข้อความถูกสร้างบน CPU แล้วชนกัน
+        # วิธีแก้: ย้ายโมเดลกลับ CPU + ล้าง CLIP cache ให้สร้างใหม่บน CPU
+        # (ตอน predict ระบบจะย้าย text features ไป GPU ให้เองอยู่แล้ว)
+        model.to("cpu")
+        try:
+            model.model.clip_model = None
+        except Exception:
+            pass
+        model.set_classes(classes)
+        _WORLD_CLASSES[:] = list(classes)
     return model
 
 
