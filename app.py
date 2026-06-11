@@ -313,6 +313,11 @@ footer {display:none !important;}
   border-color:#13366e !important; background:#e8eff8 !important;
   box-shadow:inset 0 0 0 1px #13366e !important;}
 
+/* ── dropdown รายการสัตว์: กันการ์ดบังป๊อปอัป + ยกชั้นรายการ ── */
+.card {overflow:visible !important;}
+.animal-dd, .animal-dd * {overflow:visible !important;}
+.animal-dd .options, .options {z-index:80 !important;}
+
 /* ── ส่วนท้าย ─────────────────────────────────────────── */
 .gov-footer {text-align:center; color:#64748b; font-size:12px; line-height:1.7;
   padding:16px 0 6px; margin-top:12px; border-top:1px solid #dbe2ee;}
@@ -377,7 +382,7 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                             elem_classes="cat-title")
                 animal_dd = gr.Dropdown(
                     choices=ANIMALS, value=[], multiselect=True, filterable=True,
-                    show_label=False, container=False,
+                    show_label=False, elem_classes="animal-dd",
                     info="พิมพ์ค้นหาชื่อสัตว์ (ภาษาอังกฤษ) แล้วเลือกได้หลายชนิด")
 
                 custom_tb = gr.Textbox(
