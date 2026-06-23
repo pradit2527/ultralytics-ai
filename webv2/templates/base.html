@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <div class="ubar">
     <div>ระบบสารสนเทศองค์กร · AIDC Tech</div>
     <div class="ubar-r">เว็บ v2 · Django + Gradio</div>

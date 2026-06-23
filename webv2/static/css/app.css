@@ -135,13 +135,41 @@ a { color:var(--brand-ink); text-decoration:none; }
 .feature-card p { margin:0; font-size:13.5px; color:var(--muted); line-height:1.75; }
 
 /* ── การ์ด / iframe ── */
-.embed-card {
-  background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden;
-  box-shadow:0 18px 44px -22px rgba(var(--shadow),.26);
+/* ── หน้า dashboard: ให้เครื่องมือ Gradio พอดีหน้าจอ ── */
+.is-dashboard .container { max-width:1380px; padding:18px 20px 18px; }
+
+.tool-bar {
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  flex-wrap:wrap; margin-bottom:14px;
 }
-.gradio-frame { width:100%; height:78vh; min-height:640px; border:0; display:block; }
+.tool-title { display:flex; align-items:center; gap:10px; font-size:16px; font-weight:700; color:var(--ink); }
+.tool-dot {
+  width:9px; height:9px; border-radius:50%; background:var(--ok);
+  box-shadow:0 0 0 4px rgba(16,185,129,.16);
+}
+.tool-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+.embed-card {
+  position:relative; background:#fff; border:1px solid var(--line); border-radius:18px;
+  overflow:hidden; box-shadow:0 18px 44px -22px rgba(var(--shadow),.26);
+}
+/* สูงพอดีพื้นที่ที่เหลือบนจอ (หักความสูงแถบบน + ขอบ) */
+.gradio-frame { width:100%; height:calc(100vh - 200px); min-height:560px; border:0; display:block; }
 .embed-hint { font-size:12.5px; color:var(--muted); margin:12px 4px 0; line-height:1.7; }
 .embed-hint code { background:var(--tint); padding:2px 7px; border-radius:6px; color:var(--brand-ink); }
+.embed-hint b { color:var(--brand-ink); }
+
+/* ── โหมดเต็มจอ (ปุ่ม "เต็มจอ" / กด Esc เพื่อออก) ── */
+.frame-exit { display:none; }
+body.frame-full-active { overflow:hidden; }
+.embed-card.frame-full {
+  position:fixed; inset:0; z-index:9999; border:0; border-radius:0;
+  box-shadow:none; background:#fff;
+}
+.embed-card.frame-full .gradio-frame { height:100vh; min-height:0; }
+.embed-card.frame-full .frame-exit {
+  display:inline-flex; position:fixed; top:14px; right:18px; z-index:10000;
+}
 
 .card {
   background:#fff; border:1px solid var(--line); border-radius:18px; padding:22px;
