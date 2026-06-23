@@ -764,6 +764,26 @@ h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
   padding:9px 12px !important;}
 .preset-group div[data-testid="checkbox-group"] label:has(input:checked) {
   font-weight:600 !important; color:var(--navy) !important;}
+
+/* ── โซน "ชุดสำเร็จรูป" — จัดเป็นกล่องแยกให้ดูเรียบร้อย ───── */
+.quick-panel {border:1px solid #dde7f5 !important; border-radius:14px !important;
+  background:linear-gradient(160deg,#f7faff,#edf3fb) !important;
+  padding:14px 15px !important; margin:6px 0 16px !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7) !important;}
+.quick-head {font-weight:700 !important; font-size:12.5px !important;
+  color:var(--navy2) !important; margin:0 2px 12px !important; letter-spacing:.2px;}
+.quick-row {gap:8px !important; flex-wrap:wrap !important;}
+/* ปุ่มเลือกเร็วในกล่องนี้เป็นพื้นขาวให้เด่นบนพื้นโทนฟ้า */
+.quick-panel .quick-btn {background:#ffffff !important; border-color:#cfdcef !important;}
+.quick-panel .quick-btn:hover {background:linear-gradient(120deg,var(--navy2),var(--navy)) !important;
+  border-color:var(--navy) !important; color:#fff !important;}
+
+/* ── เส้นคั่นหัวข้อ "เลือกตามหมวดหมู่" ───────────────────── */
+.group-divider {display:flex !important; align-items:center; gap:11px;
+  font-size:11.5px !important; font-weight:700 !important; color:#8190ab !important;
+  letter-spacing:.6px; margin:8px 2px 12px !important;}
+.group-divider::after {content:""; flex:1; height:1px;
+  background:linear-gradient(90deg,#d9e2f0,transparent);}
 """
 CSS = CSS.replace("%DOT%", _dot)
 
@@ -838,11 +858,14 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                     with gr.Group(elem_classes="card obj-card"):
                         gr.Markdown("🎯 รายการวัตถุที่ต้องการตรวจจับ",
                                     elem_classes="section-title")
-                        gr.Markdown("ชุดสำเร็จรูป — กดเลือกทีเดียวหลายอย่าง",
-                                    elem_classes="hint hint-head")
-                        with gr.Row():
-                            quick_btns = [gr.Button(name, size="sm", elem_classes="quick-btn")
-                                          for name in QUICK_SETS]
+                        # โซนเลือกเร็ว — จัดเป็นกล่องแยกให้ดูเป็นระเบียบ
+                        with gr.Group(elem_classes="quick-panel"):
+                            gr.Markdown("⚡ ชุดสำเร็จรูป · กดเลือกทีเดียวหลายอย่าง",
+                                        elem_classes="quick-head")
+                            with gr.Row(elem_classes="quick-row"):
+                                quick_btns = [gr.Button(name, size="sm", elem_classes="quick-btn")
+                                              for name in QUICK_SETS]
+                        gr.Markdown("เลือกตามหมวดหมู่", elem_classes="group-divider")
                         # CheckboxGroup แยกตามหมวด เรียงเป็นตาราง grid 2 คอลัมน์
                         preset_groups = []
                         for cat_label, items in CATEGORIES.items():
