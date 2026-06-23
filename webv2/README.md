@@ -32,11 +32,27 @@ webv2/
 └── static/css/app.css # ดีไซน์ indigo/violet เข้าชุดกับ Gradio v1
 ```
 
-## ติดตั้งและรัน (Windows)
+## วิธีรันที่ง่ายที่สุด (แนะนำ) ⭐
 
-ต้องรัน **2 บริการคู่กัน**:
+**ดับเบิลคลิกไฟล์เดียว** → `webv2\start.bat`
 
-**1) บริการ Gradio (เครื่องมือประมวลผล)** — จากโฟลเดอร์แม่ `D:\yoloe`
+ไฟล์นี้จะเปิดให้อัตโนมัติทั้งหมด:
+- เครื่องมือ Gradio (`app.py`) ที่ `:7860`
+- เว็บ Django ที่ `:8000` (ติดตั้ง + เตรียมฐานข้อมูล + สร้างบัญชี admin ให้เองครั้งแรก)
+- เปิดเบราว์เซอร์ไปที่ <http://127.0.0.1:8000> ให้
+
+จากนั้น **เข้าสู่ระบบด้วย** `admin` / `admin12345` → หน้า "เครื่องมือวิเคราะห์"
+จะฝัง Gradio ไว้ในหน้าเดียว
+
+> จะมีหน้าต่างดำขึ้นมา 2 อัน (Gradio กับ Django) — ปล่อยไว้ตอนใช้งาน,
+> ปิดหน้าต่างเพื่อหยุดบริการ
+
+## วิธีรันแบบทีละขั้น (ถ้าไม่ใช้ start.bat)
+
+ต้องรัน **2 บริการคู่กัน** — ใช้ Python จาก venv โดยตรง (อย่าใช้ `python` เปล่า ๆ
+เพราะบน Windows มักชี้ไปที่ตัว stub ของ Microsoft Store ที่รันไม่ได้):
+
+**1) บริการ Gradio** — จากโฟลเดอร์แม่ `D:\yoloe`
 ```powershell
 .\venv\Scripts\python.exe app.py        # ขึ้นที่ http://127.0.0.1:7860
 ```
@@ -45,17 +61,14 @@ webv2/
 ```powershell
 .\run_webv2.ps1                          # ขึ้นที่ http://127.0.0.1:8000
 ```
-หรือทำเองทีละขั้น:
+หรือทำเองทีละขั้น (ใช้ venv ของโปรเจกต์แม่สร้าง venv ของ Django):
 ```powershell
-python -m venv .venv
+..\venv\Scripts\python.exe -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe manage.py migrate
 .\.venv\Scripts\python.exe manage.py createsuperuser   # สร้างบัญชีผู้ดูแล
 .\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
 ```
-
-เปิด <http://127.0.0.1:8000> → เข้าสู่ระบบ → หน้า "เครื่องมือวิเคราะห์"
-จะฝังเครื่องมือ Gradio ไว้ในหน้าเดียว
 
 ## การตั้งค่า (ผ่าน environment variable)
 
