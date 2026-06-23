@@ -1,0 +1,19 @@
+# Dependencies สำหรับ DGX Spark (Ubuntu 24.04 / ARM64 / GB10 Blackwell)
+# torch + torchvision ติดตั้งแยกจาก index CUDA (ดู deploy ขั้นตอน) ไม่ใส่ที่นี่
+#
+# ต่างจาก requirements.txt หลัก:
+#   - ไม่ pin torch +cu128 (เป็นบิลด์ x86) — ลง CUDA aarch64 แยก
+#   - ใช้ opencv-python-headless (เซิร์ฟเวอร์ไม่มี GUI/libGL)
+#   - ไม่ใส่ imageio-ffmpeg (เครื่องมี ffmpeg ของระบบอยู่แล้ว)
+
+ultralytics==8.4.63
+opencv-python-headless==4.13.0.92
+numpy==2.4.4
+pillow==12.2.0
+scipy==1.17.1
+lap==0.5.13
+gradio==6.17.3
+anthropic==0.109.1
+python-docx==1.2.0
+openpyxl==3.1.5
+pandas==3.0.3

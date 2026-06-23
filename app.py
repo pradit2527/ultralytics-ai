@@ -12,6 +12,14 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 
+# โฟลเดอร์ที่ไฟล์นี้อยู่ — ใช้เป็นฐานของทุก path (รองรับทั้ง Windows และ Linux)
+_BASE_DIR = Path(__file__).resolve().parent
+# เก็บไฟล์แคชของ Gradio ไว้ในโฟลเดอร์โปรเจกต์ (เลี่ยงปัญหาสิทธิ์/แอนติไวรัส
+# ล็อกไฟล์ใน %TEMP% ที่ทำให้เกิด PermissionError ตอนเสิร์ฟวิดีโอบน Windows)
+_GRADIO_CACHE = str(_BASE_DIR / ".gradio_cache")
+os.makedirs(_GRADIO_CACHE, exist_ok=True)
+os.environ.setdefault("GRADIO_TEMP_DIR", _GRADIO_CACHE)
+
 import cv2
 import gradio as gr
 import pandas as pd
@@ -62,8 +70,8 @@ QUICK_SETS = {
     "👥 คน/สัตว์": ["👤 คน", "🐾 สัตว์", "🐶 สุนัข", "🐦 นก"],
 }
 
-ROOT = Path(r"D:\yoloe")
-# ทำงานในโฟลเดอร์ D:\yoloe เสมอ เพื่อให้โมเดลที่ดาวน์โหลดอัตโนมัติ (เช่น
+ROOT = _BASE_DIR
+# ทำงานในโฟลเดอร์โปรเจกต์เสมอ เพื่อให้โมเดลที่ดาวน์โหลดอัตโนมัติ (เช่น
 # yolov8s-world.pt, CLIP) ลงที่นี่ ไม่ไปเลอะโฟลเดอร์อื่นที่สั่งรันแอป
 os.chdir(ROOT)
 HAS_CUDA = torch.cuda.is_available()
@@ -995,4 +1003,12 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
 
 
 if __name__ == "__main__":
-    demo.queue().launch(inbrowser=True, theme=THEME, css=CSS)
+    # ค่าเริ่มต้น = พฤติกรรมเดิมบน Windows (เปิดเฉพาะเครื่องนี้ + เปิดเบราว์เซอร์)
+    # บนเซิร์ฟเวอร์ (เช่น DGX) ตั้ง env เพื่อเปิดให้เข้าผ่านเครือข่าย:
+    #   GRADIO_SERVER_NAME=0.0.0.0  GRADIO_INBROWSER=0
+    demo.queue().launch(
+        server_name=os.environ.get("GRADIO_SERVER_NAME", "127.0.0.1"),
+        server_port=int(os.environ.get("GRADIO_SERVER_PORT", "7860")),
+        inbrowser=os.environ.get("GRADIO_INBROWSER", "1") == "1",
+        theme=THEME, css=CSS,
+    )
