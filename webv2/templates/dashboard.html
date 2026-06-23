@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}เครื่องมือวิเคราะห์ · AIDC Tech{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-title">เครื่องมือวิเคราะห์วิดีโอ</div>
+    <div class="page-crumb">หน้าหลัก › <b>เครื่องมือวิเคราะห์</b></div>
+  </div>
+  <a href="{{ GRADIO_URL }}" target="_blank" rel="noopener" class="btn btn-soft">
+    เปิดในแท็บใหม่ ↗
+  </a>
+</div>
+
+<div class="embed-card">
+  <iframe
+    class="gradio-frame"
+    src="{{ GRADIO_URL }}"
+    title="AIDC Tech Video Processor"
+    allow="camera; microphone; clipboard-read; clipboard-write; fullscreen"
+    loading="lazy"></iframe>
+</div>
+
+<p class="embed-hint">
+  เครื่องมือด้านบนคือระบบประมวลผล Gradio ที่ฝังไว้ในเว็บ v2 —
+  หากแสดงว่าเชื่อมต่อไม่ได้ ตรวจสอบว่ารันบริการ Gradio (app.py) ไว้ที่
+  <code>{{ GRADIO_URL }}</code> แล้วหรือยัง
+</p>
+{% endblock %}

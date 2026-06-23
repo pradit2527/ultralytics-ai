@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}เข้าสู่ระบบ · AIDC Tech{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-mark">🛡️</div>
+    <h2 class="login-title">เข้าสู่ระบบ</h2>
+    <p class="login-sub">ระบบวิเคราะห์วิดีโอด้วย AI · AIDC Tech</p>
+
+    {% if form.errors %}
+      <div class="msg msg-error">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</div>
+    {% endif %}
+
+    <form method="post" class="form">
+      {% csrf_token %}
+      <label class="field">
+        <span class="field-label">ชื่อผู้ใช้</span>
+        {{ form.username }}
+      </label>
+      <label class="field">
+        <span class="field-label">รหัสผ่าน</span>
+        {{ form.password }}
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">เข้าสู่ระบบ</button>
+      <input type="hidden" name="next" value="{{ next }}">
+    </form>
+  </div>
+</div>
+{% endblock %}
