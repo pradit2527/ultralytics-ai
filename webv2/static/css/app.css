@@ -136,7 +136,7 @@ a { color:var(--brand-ink); text-decoration:none; }
 
 /* ── การ์ด / iframe ── */
 /* ── หน้า dashboard: ให้เครื่องมือ Gradio พอดีหน้าจอ ── */
-.is-dashboard .container { max-width:1380px; padding:18px 20px 18px; }
+.is-dashboard .container { max-width:1560px; padding:18px 20px 18px; }
 
 .tool-bar {
   display:flex; justify-content:space-between; align-items:center; gap:12px;

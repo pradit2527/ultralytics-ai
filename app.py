@@ -592,7 +592,7 @@ CSS = """
   --gold:#caa24e; --gold2:#ecd28d; --accent:#3b82f6;
   --ink:#1e293b; --muted:#62718c; --line:#e4e9f2; --card:#ffffff;
 }
-.gradio-container {max-width:1260px !important; margin:auto !important;
+.gradio-container {max-width:1520px !important; margin:auto !important;
   padding:20px 16px 0 !important;
   background:radial-gradient(1200px 500px at 80% -10%, #e7eefb 0%, rgba(231,238,251,0) 60%),
              linear-gradient(180deg,#eef2f9 0%, #e9eef7 100%) !important;}
@@ -702,7 +702,7 @@ h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
 .cat-title {font-size:12.5px !important; font-weight:600 !important; color:#33507e !important;
   margin:13px 2px 5px !important; letter-spacing:.2px;}
 .preset-group div[data-testid="checkbox-group"] {
-  display:grid !important; grid-template-columns:repeat(2, minmax(0,1fr)) !important; gap:8px !important;}
+  display:grid !important; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)) !important; gap:8px !important;}
 .preset-group div[data-testid="checkbox-group"] label {
   margin:0 !important; width:100% !important; box-sizing:border-box !important;
   border:1px solid #dbe4f1 !important; border-radius:10px !important;
@@ -931,23 +931,25 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                             label="โมเดล .pt (ใช้เมื่อไม่ได้เลือก/พิมพ์อะไร)")
 
                     with gr.Accordion("ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
-                        conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
-                                            label="ความมั่นใจขั้นต่ำ (confidence)")
-                        stride_sl = gr.Slider(1, 10, value=1, step=1,
-                                              label="ประมวลผลทุก ๆ N เฟรม (เพิ่ม = เร็วขึ้น)")
+                        with gr.Row():
+                            conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
+                                                label="ความมั่นใจขั้นต่ำ (confidence)")
+                            stride_sl = gr.Slider(1, 10, value=1, step=1,
+                                                  label="ทุก ๆ N เฟรม (เพิ่ม = เร็วขึ้น)")
                         gpu_ck = gr.Checkbox(value=HAS_CUDA, label="ใช้ GPU เร่งความเร็ว",
                                              interactive=HAS_CUDA)
 
-                    seg_ck = gr.Checkbox(
-                        value=False,
-                        label="🎭 แสดงขอบเขตวัตถุแบบ mask (segmentation)",
-                        info="วาดพื้นที่วัตถุระบายสี ไม่ใช่แค่กรอบ — ใช้ได้กับการตรวจจับ "
-                             "80 ชนิดมาตรฐาน (ครั้งแรกจะดาวน์โหลดโมเดล seg เล็ก ๆ)")
-                    track_ck = gr.Checkbox(
-                        value=False,
-                        label="🔢 นับจำนวนตัวจริง (object tracking)",
-                        info="ติดตามแต่ละวัตถุด้วย ID แล้วนับ ‘ตัวที่ไม่ซ้ำ’ จริง ๆ "
-                             "(แนะนำให้ตั้ง ‘ทุก ๆ N เฟรม’ = 1 เพื่อความแม่นยำ)")
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("ตัวเลือกการตรวจจับ", elem_classes="section-title")
+                        with gr.Row():
+                            seg_ck = gr.Checkbox(
+                                value=False,
+                                label="🎭 แสดงขอบเขตแบบ mask",
+                                info="ระบายพื้นที่วัตถุแทนกรอบ · ใช้กับ 80 ชนิดมาตรฐาน")
+                            track_ck = gr.Checkbox(
+                                value=False,
+                                label="🔢 นับจำนวนตัวจริง",
+                                info="ติดตามด้วย ID นับตัวไม่ซ้ำ · แนะนำตั้ง N เฟรม = 1")
 
                     run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
 
@@ -957,14 +959,17 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                     with gr.Group(elem_classes="card"):
                         gr.Markdown("วิดีโอผลการประมวลผล", elem_classes="section-title")
                         video_out = gr.Video(label="", height=360)
-                    with gr.Group(elem_classes="card"):
-                        gr.Markdown("สรุปผลการตรวจจับ", elem_classes="section-title")
-                        table_out = gr.Dataframe(label="", interactive=False, wrap=True)
-                    with gr.Group(elem_classes="card"):
-                        gr.Markdown("รายงานวิเคราะห์ด้วย AI", elem_classes="section-title")
-                        report_btn = gr.Button("📝 สร้างรายงานประเมินความเสี่ยง (Claude AI)",
-                                               elem_classes="ai-btn")
-                        report_md = gr.Markdown("")
+                    with gr.Row(equal_height=False):
+                        with gr.Column(scale=1):
+                            with gr.Group(elem_classes="card"):
+                                gr.Markdown("สรุปผลการตรวจจับ", elem_classes="section-title")
+                                table_out = gr.Dataframe(label="", interactive=False, wrap=True)
+                        with gr.Column(scale=1):
+                            with gr.Group(elem_classes="card"):
+                                gr.Markdown("รายงานวิเคราะห์ด้วย AI", elem_classes="section-title")
+                                report_btn = gr.Button("📝 สร้างรายงานประเมินความเสี่ยง (Claude AI)",
+                                                       elem_classes="ai-btn")
+                                report_md = gr.Markdown("")
 
         # ═════════ แท็บที่ 2: รายงานผล ═════════
         with gr.Tab("รายงานผล") as report_tab:
