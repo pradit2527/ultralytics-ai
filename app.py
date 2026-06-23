@@ -870,13 +870,13 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                 # ───────── ฝั่งซ้าย: ตั้งค่า ─────────
                 with gr.Column(scale=4):
                     with gr.Group(elem_classes="card"):
-                        gr.Markdown("🎞️ ไฟล์วิดีโอนำเข้า", elem_classes="section-title")
+                        gr.Markdown("ไฟล์วิดีโอนำเข้า", elem_classes="section-title")
                         video_in = gr.Video(label="", height=220, elem_classes="video-in")
                         gr.Markdown("รองรับไฟล์ .mp4 · .mov · .avi — ลากมาวางหรือคลิกเพื่อเลือก",
                                     elem_classes="hint upload-hint")
 
                     with gr.Group(elem_classes="card obj-card"):
-                        gr.Markdown("🎯 รายการวัตถุที่ต้องการตรวจจับ",
+                        gr.Markdown("รายการวัตถุที่ต้องการตรวจจับ",
                                     elem_classes="section-title")
                         gr.Markdown("ชุดสำเร็จรูป — กดเลือกทีเดียวหลายอย่าง",
                                     elem_classes="hint hint-head")
@@ -902,14 +902,13 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                         custom_tb = gr.Textbox(
                             label="เพิ่มเอง (พิมพ์ภาษาอังกฤษ คั่นด้วย ,)",
                             placeholder="เช่น: bridge, waterfall, helicopter",
-                            info="ติ๊กหรือพิมพ์อย่างใดอย่างหนึ่ง = ใช้ AI ตรวจจับตามนั้น | "
-                                 "ไม่เลือกอะไรเลย = ใช้โมเดลปกติ 80 ชนิด",
+                            info="ติ๊กหรือพิมพ์ = ใช้ AI ตรวจตามนั้น · ไม่เลือก = โมเดลปกติ 80 ชนิด",
                         )
+
+                    with gr.Accordion("ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
                         model_dd = gr.Dropdown(
                             find_models(), value=find_models()[0],
                             label="โมเดล .pt (ใช้เมื่อไม่ได้เลือก/พิมพ์อะไร)")
-
-                    with gr.Accordion("ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
                         conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
                                             label="ความมั่นใจขั้นต่ำ (confidence)")
                         stride_sl = gr.Slider(1, 10, value=1, step=1,
@@ -917,16 +916,16 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                         gpu_ck = gr.Checkbox(value=HAS_CUDA, label="ใช้ GPU เร่งความเร็ว",
                                              interactive=HAS_CUDA)
 
-                    seg_ck = gr.Checkbox(
-                        value=False,
-                        label="🎭 แสดงขอบเขตวัตถุแบบ mask (segmentation)",
-                        info="วาดพื้นที่วัตถุระบายสี ไม่ใช่แค่กรอบ — ใช้ได้กับการตรวจจับ "
-                             "80 ชนิดมาตรฐาน (ครั้งแรกจะดาวน์โหลดโมเดล seg เล็ก ๆ)")
-                    track_ck = gr.Checkbox(
-                        value=False,
-                        label="🔢 นับจำนวนตัวจริง (object tracking)",
-                        info="ติดตามแต่ละวัตถุด้วย ID แล้วนับ ‘ตัวที่ไม่ซ้ำ’ จริง ๆ "
-                             "(แนะนำให้ตั้ง ‘ทุก ๆ N เฟรม’ = 1 เพื่อความแม่นยำ)")
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("ตัวเลือกการตรวจจับ", elem_classes="section-title")
+                        seg_ck = gr.Checkbox(
+                            value=False,
+                            label="แสดงขอบเขตวัตถุแบบ mask (segmentation)",
+                            info="ระบายพื้นที่วัตถุแทนกรอบ · ใช้กับ 80 ชนิดมาตรฐาน")
+                        track_ck = gr.Checkbox(
+                            value=False,
+                            label="นับจำนวนตัวจริง (object tracking)",
+                            info="ติดตามด้วย ID แล้วนับตัวไม่ซ้ำ · แนะนำตั้ง N เฟรม = 1")
 
                     run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
 
@@ -972,9 +971,9 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                     word_btn = gr.Button("📄 สร้างรายงาน Word", elem_classes="ai-btn")
                     excel_btn = gr.Button("📊 สร้างตาราง Excel", elem_classes="ai-btn")
                     video_btn = gr.Button("🎬 เตรียมวิดีโอผล", elem_classes="ai-btn")
-                word_file = gr.File(label="รายงาน (Word)", interactive=False)
-                excel_file = gr.File(label="ตาราง (Excel)", interactive=False)
-                video_file = gr.File(label="วิดีโอผลการประมวลผล", interactive=False)
+                word_file = gr.File(label="รายงาน (Word)", interactive=False, visible=False)
+                excel_file = gr.File(label="ตาราง (Excel)", interactive=False, visible=False)
+                video_file = gr.File(label="วิดีโอผลการประมวลผล", interactive=False, visible=False)
 
     gr.HTML(FOOTER)
 
@@ -1028,10 +1027,15 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
     report_tab.select(build_report_page,
                       inputs=[report_state, ai_report_state], outputs=_report_outputs)
 
-    # ส่งออกเอกสาร/ไฟล์
-    word_btn.click(export_word, inputs=[report_state, ai_report_state], outputs=word_file)
-    excel_btn.click(export_excel, inputs=report_state, outputs=excel_file)
-    video_btn.click(get_result_video, inputs=report_state, outputs=video_file)
+    # ส่งออกเอกสาร/ไฟล์ — แสดงกล่องไฟล์เฉพาะหลังสร้างเสร็จ (ไม่โชว์กล่องว่างรก ๆ)
+    def _reveal(fn):
+        def w(*a):
+            return gr.update(value=fn(*a), visible=True)
+        return w
+
+    word_btn.click(_reveal(export_word), inputs=[report_state, ai_report_state], outputs=word_file)
+    excel_btn.click(_reveal(export_excel), inputs=report_state, outputs=excel_file)
+    video_btn.click(_reveal(get_result_video), inputs=report_state, outputs=video_file)
 
 
 if __name__ == "__main__":
