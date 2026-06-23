@@ -90,6 +90,33 @@ def load_animals() -> list[str]:
 
 ANIMALS = load_animals()
 
+# จัดกลุ่มสัตว์ตามตัวอักษรขึ้นต้น เพื่อทำตัวกรองให้รายการไม่ล้นในดรอปดาวน์เดียว
+ANIMAL_ALL = "__ALL__"
+
+
+def _group_animals_by_letter(names: list[str]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for n in names:
+        first = n[0].upper() if n else "#"
+        if not ("A" <= first <= "Z"):
+            first = "#"
+        groups.setdefault(first, []).append(n)
+    return groups
+
+
+ANIMAL_GROUPS = _group_animals_by_letter(ANIMALS)
+# ตัวเลือกหมวด (label, value) — โชว์จำนวนในวงเล็บ
+ANIMAL_LETTER_CHOICES = [(f"⭐ ทั้งหมด ({len(ANIMALS)})", ANIMAL_ALL)] + [
+    (f"{L}  ({len(ANIMAL_GROUPS[L])})", L) for L in sorted(ANIMAL_GROUPS)
+]
+
+
+def filter_animals(group, selected):
+    """ย่อรายการสัตว์ตามหมวดตัวอักษร — แต่คงรายการที่เลือกไว้แล้วเสมอ"""
+    base = ANIMALS if group in (None, ANIMAL_ALL) else ANIMAL_GROUPS.get(group, [])
+    extra = [x for x in (selected or []) if x not in base]
+    return gr.update(choices=base + extra)
+
 
 def get_model(model_path: str) -> YOLO:
     if model_path not in _MODEL_CACHE:
@@ -686,9 +713,16 @@ h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
   border-color:var(--accent) !important; background:#eaf1fe !important;
   box-shadow:0 0 0 1px var(--accent), 0 6px 14px -8px rgba(59,130,246,.6) !important;}
 
-/* ── dropdown รายการสัตว์: กันการ์ดบังป๊อปอัป ───────────── */
+/* ── dropdown รายการสัตว์: กันการ์ดบังป๊อปอัป + จำกัดความสูง ── */
 .animal-dd, .animal-dd * {overflow:visible !important;}
 .animal-dd .options, .options {z-index:80 !important;}
+/* ป๊อปอัปไม่ยาวล้น — เลื่อนดูได้ในกรอบ */
+.animal-dd .options {max-height:240px !important; overflow-y:auto !important;
+  border-radius:12px !important; box-shadow:0 14px 30px -10px rgba(13,37,82,.3) !important;}
+.animal-dd .options li, .animal-dd .options .item {font-size:13px !important; padding:7px 12px !important;}
+/* ตัวกรองตัวอักษร — ชิดกับดรอปดาวน์ด้านล่าง ดูเป็นชุดเดียว */
+.animal-letter {margin-bottom:8px !important;}
+.animal-letter .options {max-height:280px !important; overflow-y:auto !important;}
 
 /* ── แท็บระบบ (เมนูหลัก) ──────────────────────────────── */
 .gov-tabs {border-radius:0 0 16px 16px !important;
@@ -877,10 +911,14 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
 
                         gr.Markdown(f"สัตว์ (รายการละเอียด {len(ANIMALS)} ชนิด)",
                                     elem_classes="cat-title")
+                        animal_letter = gr.Dropdown(
+                            choices=ANIMAL_LETTER_CHOICES, value=ANIMAL_ALL,
+                            label="กรองตามตัวอักษร (A–Z)", elem_classes="animal-letter")
                         animal_dd = gr.Dropdown(
                             choices=ANIMALS, value=[], multiselect=True, filterable=True,
                             show_label=False, elem_classes="animal-dd",
-                            info="พิมพ์ค้นหาชื่อสัตว์ (ภาษาอังกฤษ) แล้วเลือกได้หลายชนิด")
+                            info="ย่อรายการด้วยตัวกรองด้านบน หรือพิมพ์ค้นหาชื่อสัตว์ (อังกฤษ) "
+                                 "ได้เลย — รายการที่เลือกไว้จะไม่หายเมื่อสลับหมวด")
 
                         custom_tb = gr.Textbox(
                             label="เพิ่มเอง (พิมพ์ภาษาอังกฤษ คั่นด้วย ,)",
@@ -975,6 +1013,10 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
     for btn, name in zip(quick_btns, QUICK_SETS):
         btn.click(_add_set(QUICK_SETS[name]),
                   inputs=preset_groups, outputs=preset_groups)
+
+    # ตัวกรองตามตัวอักษร → ย่อรายการในดรอปดาวน์สัตว์ (คงรายการที่เลือกไว้)
+    animal_letter.change(filter_animals,
+                         inputs=[animal_letter, animal_dd], outputs=animal_dd)
 
     n_groups = len(preset_groups)
 
