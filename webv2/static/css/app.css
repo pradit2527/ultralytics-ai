@@ -138,16 +138,47 @@ a { color:var(--brand-ink); text-decoration:none; }
 /* ── หน้า dashboard: ให้เครื่องมือ Gradio พอดีหน้าจอ ── */
 .is-dashboard .container { max-width:1560px; padding:18px 20px 18px; }
 
-.tool-bar {
-  display:flex; justify-content:space-between; align-items:center; gap:12px;
-  flex-wrap:wrap; margin-bottom:14px;
+/* ── hero ของหน้าเครื่องมือ (Django จัดวางรอบ iframe) ── */
+.tool-hero {
+  position:relative; overflow:hidden; border-radius:20px; margin-bottom:16px;
+  padding:24px 26px; display:flex; align-items:center; justify-content:space-between;
+  gap:18px; flex-wrap:wrap; color:#fff;
+  background:linear-gradient(125deg,#0f1437 0%,var(--brand-night) 52%,#3b2e86 100%);
+  box-shadow:0 22px 46px -26px rgba(49,46,129,.7);
 }
-.tool-title { display:flex; align-items:center; gap:10px; font-size:16px; font-weight:700; color:var(--ink); }
-.tool-dot {
-  width:9px; height:9px; border-radius:50%; background:var(--ok);
-  box-shadow:0 0 0 4px rgba(16,185,129,.16);
-}
-.tool-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.th-aurora { position:absolute; border-radius:50%; filter:blur(44px); opacity:.55; pointer-events:none; }
+.th-aurora.a1 { width:260px; height:260px; left:-40px; top:-110px;
+  background:radial-gradient(circle,#8b5cf6,transparent 68%); }
+.th-aurora.a2 { width:300px; height:300px; right:-50px; bottom:-150px;
+  background:radial-gradient(circle,#22d3ee,transparent 68%); }
+.th-main { position:relative; z-index:1; display:flex; align-items:center; gap:18px; min-width:0; }
+.th-emblem { width:58px; height:58px; flex:0 0 58px; border-radius:16px; display:grid; place-items:center;
+  font-size:28px; background:linear-gradient(160deg,rgba(255,255,255,.2),rgba(255,255,255,.05));
+  border:1px solid rgba(196,181,253,.5); box-shadow:0 10px 24px rgba(0,0,0,.25); }
+.th-eyebrow { font-size:11px; letter-spacing:3px; font-weight:800; color:#c7d2fe; }
+.th-title { margin:4px 0 0; font-size:20px; font-weight:800; color:#fff; line-height:1.3; }
+.th-sub { margin:5px 0 0; font-size:12.5px; color:#c5ccef; line-height:1.6; max-width:560px; }
+.th-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.chip { display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600;
+  color:#dfe3ff; background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.14);
+  padding:5px 12px; border-radius:999px; }
+.chip .dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; }
+.chip-ok { color:#bbf7d0; background:rgba(16,185,129,.16); border-color:rgba(16,185,129,.34); }
+.chip-ok .dot { background:var(--ok); box-shadow:0 0 0 3px rgba(16,185,129,.22); }
+.chip-off { color:#fecaca; background:rgba(239,68,68,.16); border-color:rgba(239,68,68,.34); }
+.chip-off .dot { background:#ef4444; }
+.th-actions { position:relative; z-index:1; display:flex; gap:8px; flex-wrap:wrap; }
+.th-actions .btn-ghost { color:#e7e9ff; border-color:rgba(255,255,255,.25); background:rgba(255,255,255,.06); }
+.th-actions .btn-ghost:hover { background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.4); color:#fff; }
+
+/* ── สถานะออฟไลน์ (ทับบน iframe เมื่อเครื่องมือไม่ตอบ) ── */
+.embed-offline { position:absolute; inset:0; display:grid; place-items:center;
+  background:linear-gradient(160deg,#f8f9ff,#eef1fd); z-index:3; }
+.eo-card { text-align:center; padding:30px; }
+.eo-emoji { font-size:42px; margin-bottom:12px; }
+.eo-title { font-size:16px; font-weight:700; color:var(--ink); margin-bottom:6px; }
+.eo-sub { font-size:13px; color:var(--muted); line-height:1.7; }
+.eo-sub code { background:#fff; border:1px solid var(--line); padding:2px 8px; border-radius:6px; color:var(--brand-ink); }
 
 .embed-card {
   position:relative; background:#fff; border:1px solid var(--line); border-radius:18px;

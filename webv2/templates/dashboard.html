@@ -3,16 +3,27 @@
 {% block body_class %}is-dashboard{% endblock %}
 
 {% block content %}
-<div class="tool-bar">
-  <div class="tool-title">
-    <span class="tool-dot"></span>
-    เครื่องมือวิเคราะห์วิดีโอ (YOLO)
+<section class="tool-hero">
+  <span class="th-aurora a1"></span>
+  <span class="th-aurora a2"></span>
+  <div class="th-main">
+    <div class="th-emblem">🤖</div>
+    <div class="th-text">
+      <div class="th-eyebrow">AI VIDEO ANALYTICS</div>
+      <h1 class="th-title">เครื่องมือวิเคราะห์วิดีโอด้วย AI</h1>
+      <p class="th-sub">ตรวจจับวัตถุ คน สัตว์ และเหตุการณ์ในวิดีโอ พร้อมรายงานประเมินความเสี่ยงโดย AI</p>
+      <div class="th-chips">
+        <span class="chip" id="statusChip"><span class="dot"></span> กำลังตรวจสอบการเชื่อมต่อ…</span>
+        <span class="chip">YOLO · Ultralytics</span>
+        <span class="chip">รายงานโดย Claude AI</span>
+      </div>
+    </div>
   </div>
-  <div class="tool-actions">
+  <div class="th-actions">
     <button type="button" class="btn btn-ghost" id="fsBtn" onclick="toggleFrameFull()">⛶ เต็มจอ</button>
     <a href="{{ GRADIO_URL }}" target="_blank" rel="noopener" class="btn btn-soft">เปิดแท็บใหม่ ↗</a>
   </div>
-</div>
+</section>
 
 <div class="embed-card" id="embedCard">
   <button type="button" class="btn btn-soft frame-exit" onclick="toggleFrameFull()">✕ ออกจากเต็มจอ</button>
@@ -22,14 +33,18 @@
     src="{{ GRADIO_URL }}"
     title="AIDC Tech Video Processor"
     allow="camera; microphone; clipboard-read; clipboard-write; fullscreen"></iframe>
+  <div class="embed-offline" id="embedOffline" hidden>
+    <div class="eo-card">
+      <div class="eo-emoji">🔌</div>
+      <div class="eo-title">ยังเชื่อมต่อเครื่องมือไม่ได้</div>
+      <div class="eo-sub">กรุณาเปิดบริการ Gradio (app.py) ที่ <code>{{ GRADIO_URL }}</code> แล้วกดรีเฟรช</div>
+    </div>
+  </div>
 </div>
 
-<p class="embed-hint">
-  หากหน้าจอด้านบนว่างหรือเชื่อมต่อไม่ได้ ตรวจสอบว่าเปิดบริการ Gradio (app.py) ไว้ที่
-  <code>{{ GRADIO_URL }}</code> แล้ว — กด <b>เต็มจอ</b> เพื่อขยายเครื่องมือให้พอดีหน้าจอ
-</p>
-
 <script>
+  const GRADIO_URL = "{{ GRADIO_URL }}";
+
   function toggleFrameFull() {
     var card = document.getElementById('embedCard');
     var on = card.classList.toggle('frame-full');
@@ -41,5 +56,21 @@
       toggleFrameFull();
     }
   });
+
+  // Django ตรวจว่าเครื่องมือ Gradio ออนไลน์ไหม แล้วแสดงสถานะ
+  (function checkTool() {
+    var chip = document.getElementById('statusChip');
+    fetch(GRADIO_URL, { mode: 'no-cors', cache: 'no-store' })
+      .then(function () {
+        chip.className = 'chip chip-ok';
+        chip.innerHTML = '<span class="dot"></span> เชื่อมต่อเครื่องมือแล้ว';
+        document.getElementById('embedOffline').hidden = true;
+      })
+      .catch(function () {
+        chip.className = 'chip chip-off';
+        chip.innerHTML = '<span class="dot"></span> เครื่องมือออฟไลน์';
+        document.getElementById('embedOffline').hidden = false;
+      });
+  })();
 </script>
 {% endblock %}
