@@ -136,29 +136,30 @@ a { color:var(--brand-ink); text-decoration:none; }
 
 /* ── การ์ด / iframe ── */
 /* ── หน้า dashboard: ให้เครื่องมือ Gradio พอดีหน้าจอ ── */
-.is-dashboard .container { max-width:1560px; padding:18px 20px 18px; }
+.is-dashboard .container { max-width:1560px; padding:14px 20px 14px; }
+.is-dashboard .topbar { padding-top:11px; padding-bottom:11px; }
 
 /* ── hero ของหน้าเครื่องมือ (Django จัดวางรอบ iframe) ── */
 .tool-hero {
-  position:relative; overflow:hidden; border-radius:20px; margin-bottom:16px;
-  padding:24px 26px; display:flex; align-items:center; justify-content:space-between;
-  gap:18px; flex-wrap:wrap; color:#fff;
+  position:relative; overflow:hidden; border-radius:18px; margin-bottom:12px;
+  padding:16px 22px; display:flex; align-items:center; justify-content:space-between;
+  gap:16px; flex-wrap:wrap; color:#fff;
   background:linear-gradient(125deg,#0f1437 0%,var(--brand-night) 52%,#3b2e86 100%);
-  box-shadow:0 22px 46px -26px rgba(49,46,129,.7);
+  box-shadow:0 20px 42px -26px rgba(49,46,129,.7);
 }
 .th-aurora { position:absolute; border-radius:50%; filter:blur(44px); opacity:.55; pointer-events:none; }
 .th-aurora.a1 { width:260px; height:260px; left:-40px; top:-110px;
   background:radial-gradient(circle,#8b5cf6,transparent 68%); }
 .th-aurora.a2 { width:300px; height:300px; right:-50px; bottom:-150px;
   background:radial-gradient(circle,#22d3ee,transparent 68%); }
-.th-main { position:relative; z-index:1; display:flex; align-items:center; gap:18px; min-width:0; }
-.th-emblem { width:58px; height:58px; flex:0 0 58px; border-radius:16px; display:grid; place-items:center;
-  font-size:28px; background:linear-gradient(160deg,rgba(255,255,255,.2),rgba(255,255,255,.05));
+.th-main { position:relative; z-index:1; display:flex; align-items:center; gap:16px; min-width:0; }
+.th-emblem { width:50px; height:50px; flex:0 0 50px; border-radius:14px; display:grid; place-items:center;
+  font-size:25px; background:linear-gradient(160deg,rgba(255,255,255,.2),rgba(255,255,255,.05));
   border:1px solid rgba(196,181,253,.5); box-shadow:0 10px 24px rgba(0,0,0,.25); }
-.th-eyebrow { font-size:11px; letter-spacing:3px; font-weight:800; color:#c7d2fe; }
-.th-title { margin:4px 0 0; font-size:20px; font-weight:800; color:#fff; line-height:1.3; }
-.th-sub { margin:5px 0 0; font-size:12.5px; color:#c5ccef; line-height:1.6; max-width:560px; }
-.th-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.th-eyebrow { font-size:10.5px; letter-spacing:3px; font-weight:800; color:#c7d2fe; }
+.th-title { margin:3px 0 0; font-size:18px; font-weight:800; color:#fff; line-height:1.25; }
+.th-sub { margin:4px 0 0; font-size:12px; color:#c5ccef; line-height:1.55; max-width:560px; }
+.th-chips { display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
 .chip { display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600;
   color:#dfe3ff; background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.14);
   padding:5px 12px; border-radius:999px; }
@@ -185,7 +186,7 @@ a { color:var(--brand-ink); text-decoration:none; }
   overflow:hidden; box-shadow:0 18px 44px -22px rgba(var(--shadow),.26);
 }
 /* สูงพอดีพื้นที่ที่เหลือบนจอ (หักความสูงแถบบน + ขอบ) */
-.gradio-frame { width:100%; height:calc(100vh - 200px); min-height:560px; border:0; display:block; }
+.gradio-frame { width:100%; height:calc(100vh - 258px); min-height:480px; border:0; display:block; }
 .embed-hint { font-size:12.5px; color:var(--muted); margin:12px 4px 0; line-height:1.7; }
 .embed-hint code { background:var(--tint); padding:2px 7px; border-radius:6px; color:var(--brand-ink); }
 .embed-hint b { color:var(--brand-ink); }
