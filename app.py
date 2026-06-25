@@ -752,18 +752,18 @@ h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
 /* ── เส้นคั่นหัวข้อ "เลือกตามหมวดหมู่" ───────────────────── */
 .group-divider {display:flex !important; align-items:center; gap:11px;
   font-size:11.5px !important; font-weight:700 !important; color:var(--faint) !important;
-  letter-spacing:.6px; margin:8px 2px 12px !important;}
+  letter-spacing:.6px; margin:4px 2px 8px !important;}
 .group-divider::after {content:""; flex:1; height:1px;
   background:linear-gradient(90deg,#dde1f5,transparent);}
 
 /* ── หัวข้อหมวด + ตาราง grid ของรายการวัตถุ ───────────── */
 .preset-group div[data-testid="checkbox-group"] {
-  display:grid !important; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)) !important; gap:9px !important;}
+  display:grid !important; grid-template-columns:repeat(auto-fit, minmax(126px,1fr)) !important; gap:6px !important;}
 .preset-group div[data-testid="checkbox-group"] label {
   margin:0 !important; width:100% !important; box-sizing:border-box !important;
-  border:1px solid #e3e6f5 !important; border-radius:12px !important;
-  background:#fbfcff !important; padding:9px 12px !important; font-size:13px !important;
-  transition:all .15s ease;}
+  border:1px solid #e3e6f5 !important; border-radius:10px !important;
+  background:#fbfcff !important; padding:6px 10px !important; font-size:12.5px !important;
+  line-height:1.25 !important; transition:all .15s ease;}
 .preset-group div[data-testid="checkbox-group"] label:hover {
   border-color:#b6bdec !important; background:var(--tint) !important; transform:translateY(-1px);}
 .preset-group div[data-testid="checkbox-group"] label:has(input:checked) {
@@ -847,11 +847,11 @@ h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
 /* ── การ์ดเลือกวัตถุ: หัวข้อหมวดเป็นชิป ─────────────────── */
 .hint-head {font-weight:600 !important; color:var(--brand-ink) !important;
   font-size:13px !important; margin:2px 2px 10px !important;}
-.cat-title {margin:16px 0 9px !important;}
+.cat-title {margin:11px 0 6px !important;}
 .cat-title p, .cat-title span {display:inline-block !important;
   background:linear-gradient(120deg,var(--tint),var(--tint2)) !important; border:1px solid #dde1f5 !important;
-  color:var(--brand-ink) !important; font-weight:700 !important; font-size:12px !important;
-  padding:5px 14px !important; border-radius:999px !important; letter-spacing:.3px;}
+  color:var(--brand-ink) !important; font-weight:700 !important; font-size:11.5px !important;
+  padding:4px 12px !important; border-radius:999px !important; letter-spacing:.2px;}
 """
 CSS = CSS.replace("%DOT%", _dot)
 
