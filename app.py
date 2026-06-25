@@ -835,14 +835,32 @@ h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
 .app-footer .ft-base {background:linear-gradient(90deg,var(--brand-night),#241f57); color:#c2c8ee;
   font-size:11.5px; text-align:center; padding:13px 16px; letter-spacing:.4px;}
 
-/* ── กล่องอัปโหลดวิดีโอ ────────────────────────────────── */
-.video-in .wrap {border:2px dashed #c0c6ee !important; border-radius:16px !important;
-  background:linear-gradient(160deg,#f8f9ff,#f0f1fd) !important; color:var(--muted) !important;
-  transition:border-color .2s ease, background .2s ease, box-shadow .2s ease;}
-.video-in .wrap:hover {border-color:var(--brand) !important; background:#eef0fe !important;
-  box-shadow:inset 0 0 0 3px rgba(var(--brand-rgb),.08) !important;}
-.video-in .wrap svg {color:var(--brand) !important; opacity:.92; transform:scale(1.05);}
-.upload-hint {text-align:center; color:var(--faint) !important; margin-top:9px !important;}
+/* ── กล่องอัปโหลดวิดีโอ (dropzone โมเดิร์น) ─────────────── */
+.video-in {border-radius:16px !important; overflow:hidden !important;}
+.video-in .wrap {border:2px dashed #c3c9f0 !important; border-radius:16px !important;
+  min-height:172px !important; color:var(--brand-ink) !important;
+  background:
+    radial-gradient(460px 150px at 50% 0%, rgba(139,92,246,.10), transparent 70%),
+    linear-gradient(160deg,#fbfbff,#eef1fd) !important;
+  transition:border-color .2s ease, background .2s ease, box-shadow .2s ease, transform .2s ease;}
+.video-in .wrap:hover {border-color:var(--brand) !important;
+  background:
+    radial-gradient(460px 150px at 50% 0%, rgba(139,92,246,.16), transparent 70%),
+    linear-gradient(160deg,#f2f3fe,#e9ecfd) !important;
+  box-shadow:inset 0 0 0 3px rgba(var(--brand-rgb),.07),
+             0 16px 32px -20px rgba(var(--brand-rgb),.45) !important;
+  transform:translateY(-1px);}
+.video-in .wrap svg {color:var(--brand) !important; opacity:1 !important;
+  width:40px !important; height:40px !important; transform:scale(1) !important;
+  filter:drop-shadow(0 6px 12px rgba(var(--brand-rgb),.35));}
+
+/* ── ป้ายใต้กล่องอัปโหลด: คำอธิบาย + ชนิดไฟล์ ──────────── */
+.upload-hint {display:flex !important; align-items:center; justify-content:space-between;
+  gap:10px; flex-wrap:wrap; margin-top:11px !important;}
+.upload-hint .uh-text {font-size:12.5px; color:var(--muted);}
+.upload-hint .uh-exts {display:inline-flex; gap:6px;}
+.upload-hint .ext {font-size:10.5px; font-weight:700; letter-spacing:.6px; color:var(--brand-ink);
+  background:var(--tint); border:1px solid #dde1f5; padding:3px 9px; border-radius:7px;}
 
 /* ── การ์ดเลือกวัตถุ: หัวข้อหมวดเป็นชิป ─────────────────── */
 .hint-head {font-weight:600 !important; color:var(--brand-ink) !important;
@@ -925,9 +943,14 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                 with gr.Column(scale=4):
                     with gr.Group(elem_classes="card"):
                         gr.Markdown("ขั้นที่ 1 · อัปโหลดวิดีโอ", elem_classes="section-title")
-                        video_in = gr.Video(label="", height=220, elem_classes="video-in")
-                        gr.Markdown("รองรับไฟล์ .mp4 · .mov · .avi — ลากมาวางหรือคลิกเพื่อเลือก",
-                                    elem_classes="hint upload-hint")
+                        video_in = gr.Video(label="", height=210, elem_classes="video-in")
+                        gr.HTML(
+                            '<div class="upload-hint">'
+                            '<span class="uh-text">ลากไฟล์มาวาง หรือคลิกที่กรอบเพื่อเลือก</span>'
+                            '<span class="uh-exts">'
+                            '<span class="ext">MP4</span><span class="ext">MOV</span>'
+                            '<span class="ext">AVI</span></span>'
+                            '</div>')
 
                     with gr.Group(elem_classes="card obj-card"):
                         gr.Markdown("ขั้นที่ 2 · เลือกวัตถุที่จะตรวจจับ",
