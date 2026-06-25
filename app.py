@@ -718,6 +718,17 @@ h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
   border-radius:16px 0 0 16px; background:linear-gradient(180deg,var(--brand),var(--brand2));}
 .status-box b {color:var(--brand-ink);}
 
+/* ── การ์ดต้อนรับแบบคู่มือ 3 ขั้นตอน (empty state ฝั่งผลลัพธ์) ── */
+.welcome-guide {padding:18px 20px 18px 22px !important;}
+.welcome-guide .wg-title {font-weight:700; font-size:14.5px; color:var(--brand-deep);
+  margin-bottom:12px;}
+.welcome-guide .wg-step {display:flex; align-items:center; gap:12px; font-size:13.5px;
+  color:var(--ink); padding:7px 0;}
+.welcome-guide .wg-step b {flex:0 0 26px; width:26px; height:26px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; font-size:13px; color:#fff;
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  box-shadow:0 6px 14px -6px rgba(var(--brand-rgb),.6);}
+
 .hint {font-size:12.5px !important; color:var(--muted) !important; margin:5px 2px 2px !important;}
 .quick-btn {border-radius:999px !important; font-size:12.5px !important; font-weight:600 !important;
   background:var(--tint) !important; border:1px solid #e0e3f5 !important; color:var(--brand-ink) !important;
@@ -891,9 +902,12 @@ FOOTER = """
 """
 
 WELCOME = (
-    '<div class="status-box">โปรดอัปโหลดไฟล์วิดีโอและเลือกรายการวัตถุที่ต้องการ'
-    'ตรวจจับทางด้านซ้าย จากนั้นกดปุ่ม <b>เริ่มประมวลผล</b> '
-    'ระบบจะแสดงผลการวิเคราะห์ ณ บริเวณนี้</div>'
+    '<div class="status-box welcome-guide">'
+    '<div class="wg-title">เริ่มต้นใช้งานใน 3 ขั้นตอน</div>'
+    '<div class="wg-step"><b>1</b><span>อัปโหลดไฟล์วิดีโอทางด้านซ้าย</span></div>'
+    '<div class="wg-step"><b>2</b><span>เลือกวัตถุที่ต้องการตรวจจับ</span></div>'
+    '<div class="wg-step"><b>3</b><span>กดปุ่ม “เริ่มประมวลผล” — ผลการวิเคราะห์จะแสดงตรงนี้</span></div>'
+    '</div>'
 )
 
 with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
@@ -910,13 +924,13 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                 # ───────── ฝั่งซ้าย: ตั้งค่า ─────────
                 with gr.Column(scale=4):
                     with gr.Group(elem_classes="card"):
-                        gr.Markdown("🎞️ ไฟล์วิดีโอนำเข้า", elem_classes="section-title")
+                        gr.Markdown("ขั้นที่ 1 · อัปโหลดวิดีโอ", elem_classes="section-title")
                         video_in = gr.Video(label="", height=220, elem_classes="video-in")
                         gr.Markdown("รองรับไฟล์ .mp4 · .mov · .avi — ลากมาวางหรือคลิกเพื่อเลือก",
                                     elem_classes="hint upload-hint")
 
                     with gr.Group(elem_classes="card obj-card"):
-                        gr.Markdown("🎯 รายการวัตถุที่ต้องการตรวจจับ",
+                        gr.Markdown("ขั้นที่ 2 · เลือกวัตถุที่จะตรวจจับ",
                                     elem_classes="section-title")
                         # โซนเลือกเร็ว — จัดเป็นกล่องแยกให้ดูเป็นระเบียบ
                         with gr.Group(elem_classes="quick-panel"):
@@ -966,7 +980,8 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                                              interactive=HAS_CUDA)
 
                     with gr.Group(elem_classes="card"):
-                        gr.Markdown("ตัวเลือกการตรวจจับ", elem_classes="section-title")
+                        gr.Markdown("ตัวเลือกเสริม (segmentation / นับจำนวน)",
+                                    elem_classes="section-title")
                         with gr.Row():
                             seg_ck = gr.Checkbox(
                                 value=False,
@@ -977,14 +992,14 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                                 label="🔢 นับจำนวนตัวจริง",
                                 info="ติดตามด้วย ID นับตัวไม่ซ้ำ · แนะนำตั้ง N เฟรม = 1")
 
-                    run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
+                    run_btn = gr.Button("ขั้นที่ 3 · ▶  เริ่มประมวลผล", elem_classes="run-btn")
 
                 # ───────── ฝั่งขวา: ผลลัพธ์ ─────────
                 with gr.Column(scale=6):
                     status = gr.HTML(WELCOME)
                     with gr.Group(elem_classes="card"):
                         gr.Markdown("วิดีโอผลการประมวลผล", elem_classes="section-title")
-                        video_out = gr.Video(label="", height=360)
+                        video_out = gr.Video(label="", height=320)
                     with gr.Row(equal_height=False):
                         with gr.Column(scale=1):
                             with gr.Group(elem_classes="card"):
