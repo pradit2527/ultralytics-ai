@@ -1,0 +1,8 @@
+# Dependencies ฝั่งเว็บ v2 (Django) — แยกจาก requirements ของ Gradio (app.py)
+Django>=5.0,<5.3
+
+# สำหรับรันแบบ production (เลือกใช้ตามสภาพแวดล้อม):
+# gunicorn>=21        # WSGI server (Linux)
+# uvicorn>=0.30       # ASGI server (ถ้าจะรวม Django+Gradio โปรเซสเดียว)
+# psycopg[binary]>=3  # ถ้าเปลี่ยนไปใช้ PostgreSQL แทน SQLite
+# whitenoise>=6       # เสิร์ฟไฟล์ static ตอน DEBUG=0

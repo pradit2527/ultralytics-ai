@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}ประวัติผลวิเคราะห์ · AIDC Tech{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="page-title">ประวัติผลวิเคราะห์</div>
+    <div class="page-crumb">หน้าหลัก › <b>ประวัติผล</b></div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="card">
+    <h3 class="card-title">บันทึกผลใหม่</h3>
+    <form method="post" class="form">
+      {% csrf_token %}
+      {% for field in form %}
+        <label class="field">
+          <span class="field-label">{{ field.label }}</span>
+          {{ field }}
+          {% if field.errors %}<span class="field-err">{{ field.errors|striptags }}</span>{% endif %}
+        </label>
+      {% endfor %}
+      <button type="submit" class="btn btn-primary">บันทึกลงฐานข้อมูล</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">รายการที่บันทึกไว้ ({{ records|length }})</h3>
+    {% if records %}
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>ชื่อรายการ</th><th>ไฟล์</th><th>วัตถุ</th><th>เมื่อ</th></tr>
+          </thead>
+          <tbody>
+            {% for r in records %}
+              <tr>
+                <td>{{ r.title }}</td>
+                <td>{{ r.source_filename|default:"—" }}</td>
+                <td>{{ r.objects_detected }}</td>
+                <td>{{ r.created_at|date:"d/m/Y H:i" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty">ยังไม่มีประวัติ — บันทึกผลแรกจากฟอร์มด้านซ้าย</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

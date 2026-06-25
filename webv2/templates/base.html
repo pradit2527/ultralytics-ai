@@ -1,0 +1,60 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AIDC Tech · ระบบวิเคราะห์วิดีโอ{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <div class="ubar">
+    <div>ระบบสารสนเทศองค์กร · AIDC Tech</div>
+    <div class="ubar-r">เว็บ v2 · Django + Gradio</div>
+  </div>
+
+  <header class="topbar">
+    <a class="brand" href="{% url 'home' %}">
+      <span class="brand-mark">🛡️</span>
+      <span class="brand-text">
+        <span class="brand-org">AIDC TECH</span>
+        <span class="brand-name">ระบบวิเคราะห์วิดีโอด้วย AI</span>
+      </span>
+    </a>
+    <nav class="nav">
+      <a href="{% url 'home' %}" class="nav-link">หน้าหลัก</a>
+      {% if user.is_authenticated %}
+        <a href="{% url 'dashboard' %}" class="nav-link">เครื่องมือวิเคราะห์</a>
+        <a href="{% url 'history' %}" class="nav-link">ประวัติผล</a>
+        {% if user.is_staff %}<a href="/admin/" class="nav-link">ผู้ดูแลระบบ</a>{% endif %}
+        <span class="nav-user">{{ user.get_username }}</span>
+        <form action="{% url 'logout' %}" method="post" class="nav-logout">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-ghost">ออกจากระบบ</button>
+        </form>
+      {% else %}
+        <a href="{% url 'login' %}" class="btn btn-primary">เข้าสู่ระบบ</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main class="container">
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <div class="msg msg-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    สงวนลิขสิทธิ์ &copy; 2569 AIDC Tech · เพื่อการใช้งานภายในหน่วยงาน ·
+    ขับเคลื่อนด้วย Django, Ultralytics YOLO และ Claude AI
+  </footer>
+</body>
+</html>

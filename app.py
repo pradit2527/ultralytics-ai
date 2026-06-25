@@ -90,6 +90,33 @@ def load_animals() -> list[str]:
 
 ANIMALS = load_animals()
 
+# จัดกลุ่มสัตว์ตามตัวอักษรขึ้นต้น เพื่อทำตัวกรองให้รายการไม่ล้นในดรอปดาวน์เดียว
+ANIMAL_ALL = "__ALL__"
+
+
+def _group_animals_by_letter(names: list[str]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for n in names:
+        first = n[0].upper() if n else "#"
+        if not ("A" <= first <= "Z"):
+            first = "#"
+        groups.setdefault(first, []).append(n)
+    return groups
+
+
+ANIMAL_GROUPS = _group_animals_by_letter(ANIMALS)
+# ตัวเลือกหมวด (label, value) — โชว์จำนวนในวงเล็บ
+ANIMAL_LETTER_CHOICES = [(f"⭐ ทั้งหมด ({len(ANIMALS)})", ANIMAL_ALL)] + [
+    (f"{L}  ({len(ANIMAL_GROUPS[L])})", L) for L in sorted(ANIMAL_GROUPS)
+]
+
+
+def filter_animals(group, selected):
+    """ย่อรายการสัตว์ตามหมวดตัวอักษร — แต่คงรายการที่เลือกไว้แล้วเสมอ"""
+    base = ANIMALS if group in (None, ANIMAL_ALL) else ANIMAL_GROUPS.get(group, [])
+    extra = [x for x in (selected or []) if x not in base]
+    return gr.update(choices=base + extra)
+
 
 def get_model(model_path: str) -> YOLO:
     if model_path not in _MODEL_CACHE:
@@ -547,223 +574,284 @@ def get_result_video(report_data):
 
 
 THEME = gr.themes.Soft(
-    primary_hue="blue",
-    secondary_hue="indigo",
+    primary_hue="indigo",
+    secondary_hue="violet",
     neutral_hue="slate",
-    font=[gr.themes.GoogleFont("Sarabun"), gr.themes.GoogleFont("Kanit"),
-          "system-ui", "sans-serif"],
+    font=[gr.themes.GoogleFont("Plus Jakarta Sans"),
+          gr.themes.GoogleFont("Sarabun"), "system-ui", "sans-serif"],
     radius_size="lg",
 )
 
-_dot = "#22c55e" if HAS_CUDA else "#94a3b8"
+_dot = "#10b981" if HAS_CUDA else "#94a3b8"
 _badge = ("พร้อมใช้งาน · GPU" if HAS_CUDA else "พร้อมใช้งาน · CPU")
 
 CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Kanit:wght@500;600;700&display=swap');
 :root {
-  --navy:#0d2552; --navy2:#15407e; --navy3:#1d5099; --navy-900:#081b3f;
-  --gold:#caa24e; --gold2:#ecd28d; --accent:#3b82f6;
-  --ink:#1e293b; --muted:#62718c; --line:#e4e9f2; --card:#ffffff;
+  --brand:#6366f1; --brand2:#8b5cf6; --brand3:#a855f7;
+  --brand-ink:#4f46e5; --brand-deep:#312e81; --brand-night:#1e1b4b;
+  --cyan:#22d3ee; --ok:#10b981; --gold:#f59e0b;
+  --ink:#0f172a; --muted:#5b6478; --faint:#94a3b8;
+  --line:#e8eaf3; --line2:#eef0f8; --card:#ffffff;
+  --tint:#f3f4fd; --tint2:#eef1fe;
+  --shadow:30,27,75; --brand-rgb:99,102,241;
 }
-.gradio-container {max-width:1260px !important; margin:auto !important;
-  padding:20px 16px 0 !important;
-  background:radial-gradient(1200px 500px at 80% -10%, #e7eefb 0%, rgba(231,238,251,0) 60%),
-             linear-gradient(180deg,#eef2f9 0%, #e9eef7 100%) !important;}
+.gradio-container {max-width:1520px !important; margin:auto !important;
+  padding:18px 16px 0 !important; color:var(--ink) !important;
+  background:
+    radial-gradient(900px 420px at 88% -8%, rgba(139,92,246,.14), transparent 60%),
+    radial-gradient(820px 420px at 6% 4%, rgba(99,102,241,.13), transparent 58%),
+    linear-gradient(180deg,#eef1fb 0%, #e9ecf8 100%) !important;}
 footer {display:none !important;}
-.gradio-container * {font-feature-settings:"liga" 1;}
+.gradio-container * {font-feature-settings:"liga" 1; -webkit-font-smoothing:antialiased;}
 h1,h2,h3,.section-title,.pg-title,.rpt-title,.kpi-v,.ft-h,.app-masthead .org,
 .app-masthead h1,.mh-ver b,.gov-tabs button[role="tab"]{
-  font-family:'Kanit','Sarabun',system-ui,sans-serif !important;}
+  font-family:'Plus Jakarta Sans','Kanit','Sarabun',system-ui,sans-serif !important;}
 
-@keyframes fadeUp {from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
-@keyframes pulse {0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.45);} 50%{box-shadow:0 0 0 5px rgba(34,197,94,0);}}
-.card,.rpt-doc,.app-footer {animation:fadeUp .4s ease both;}
+::selection {background:rgba(139,92,246,.22);}
+.gradio-container ::-webkit-scrollbar {width:11px; height:11px;}
+.gradio-container ::-webkit-scrollbar-thumb {
+  background:linear-gradient(180deg,#c7cbf0,#b9bdec); border-radius:10px;
+  border:3px solid transparent; background-clip:padding-box;}
+.gradio-container ::-webkit-scrollbar-thumb:hover {background:var(--brand); background-clip:padding-box;}
+
+@keyframes fadeUp {from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;}}
+@keyframes pulse {0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.5);} 50%{box-shadow:0 0 0 6px rgba(16,185,129,0);}}
+@keyframes drift {0%{transform:translate(0,0) scale(1);} 50%{transform:translate(22px,-16px) scale(1.12);} 100%{transform:translate(0,0) scale(1);}}
+.card,.rpt-doc,.app-footer,.app-masthead {animation:fadeUp .45s cubic-bezier(.22,.61,.36,1) both;}
 
 /* ── แถบ utility ด้านบน ───────────────────────────────── */
 .app-ubar {display:flex; align-items:center; justify-content:space-between;
-  background:linear-gradient(90deg,var(--navy-900),#0c2350); color:#cdd9f2;
-  font-size:11.5px; letter-spacing:.4px; padding:7px 18px;
-  border-radius:16px 16px 0 0; border-bottom:1px solid rgba(255,255,255,.07);}
-.app-ubar .ub-right {display:inline-flex; align-items:center; gap:8px; color:#eaf0fd; font-weight:600;}
+  background:linear-gradient(90deg,var(--brand-night),#241f57); color:#c9cdf2;
+  font-size:11.5px; letter-spacing:.5px; padding:8px 20px; font-weight:500;
+  border-radius:20px 20px 0 0; border-bottom:1px solid rgba(255,255,255,.07);}
+.app-ubar .ub-right {display:inline-flex; align-items:center; gap:9px; color:#eef0ff; font-weight:600;}
 .app-ubar .ub-dot {width:9px; height:9px; border-radius:50%; background:%DOT%; animation:pulse 2.2s infinite;}
 
-/* ── masthead (เฮดเดอร์หลัก + แสง gradient mesh) ───────── */
-.app-masthead {position:relative; overflow:hidden; display:flex; align-items:center; gap:20px;
-  color:#fff; padding:24px 28px;
-  background:
-    radial-gradient(600px 200px at 12% 0%, rgba(202,162,78,.28), rgba(202,162,78,0) 70%),
-    radial-gradient(700px 260px at 95% 120%, rgba(59,130,246,.34), rgba(59,130,246,0) 70%),
-    linear-gradient(120deg,var(--navy) 0%, var(--navy2) 55%, var(--navy3) 100%);}
-.app-masthead::after{content:""; position:absolute; inset:0;
-  background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),
-                   linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);
-  background-size:26px 26px; mask-image:linear-gradient(90deg,transparent,#000 40%,#000 60%,transparent);}
+/* ── masthead (เฮดเดอร์หลัก + แสง aurora) ───────────────── */
+.app-masthead {position:relative; overflow:hidden; display:flex; align-items:center; gap:22px;
+  color:#fff; padding:30px 32px; border-radius:0 0 24px 24px;
+  background:linear-gradient(125deg,#0f1437 0%, var(--brand-night) 52%, #3b2e86 100%);
+  box-shadow:0 26px 50px -24px rgba(49,46,129,.7);}
+.app-masthead .mh-aurora {position:absolute; border-radius:50%; filter:blur(46px); opacity:.62;
+  pointer-events:none; animation:drift 13s ease-in-out infinite;}
+.app-masthead .a1 {width:280px; height:280px; left:-40px; top:-120px;
+  background:radial-gradient(circle,#8b5cf6,transparent 68%);}
+.app-masthead .a2 {width:340px; height:340px; right:-60px; bottom:-160px; animation-delay:-4s;
+  background:radial-gradient(circle,#22d3ee,transparent 68%);}
+.app-masthead .a3 {width:240px; height:240px; left:42%; top:-150px; animation-delay:-8s; opacity:.5;
+  background:radial-gradient(circle,#6366f1,transparent 68%);}
+.app-masthead::after{content:""; position:absolute; inset:0; pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:30px 30px; mask-image:radial-gradient(120% 120% at 50% 0%,#000 35%,transparent 75%);}
 .app-masthead > * {position:relative; z-index:1;}
-.app-masthead .mh-emblem {width:64px; height:64px; flex:0 0 64px; border-radius:18px;
-  background:linear-gradient(160deg,rgba(255,255,255,.18),rgba(255,255,255,.05));
-  border:1px solid rgba(236,210,141,.6); display:flex; align-items:center; justify-content:center;
-  font-size:32px; box-shadow:0 8px 22px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.25);}
-.app-masthead .org {font-size:12px; letter-spacing:4px; color:var(--gold2); font-weight:700;}
-.app-masthead h1 {margin:4px 0 0; font-size:23px; font-weight:700; color:#fff; line-height:1.3;
-  text-shadow:0 2px 10px rgba(0,0,0,.25);}
-.app-masthead .sub {margin:4px 0 0; font-size:12.5px; color:#b9c8e6;}
-.app-masthead .mh-ver {margin-left:auto; text-align:right; font-size:12px; color:#c7d4ee;
-  border-left:1px solid rgba(255,255,255,.18); padding-left:20px; line-height:1.8;}
-.app-masthead .mh-ver b {color:#fff; font-size:13.5px;}
+.app-masthead .mh-emblem {width:66px; height:66px; flex:0 0 66px; border-radius:20px;
+  background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,.06));
+  border:1px solid rgba(196,181,253,.55); display:flex; align-items:center; justify-content:center;
+  font-size:33px; backdrop-filter:blur(6px);
+  box-shadow:0 10px 26px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.3);}
+.app-masthead .org {font-size:12px; letter-spacing:5px; font-weight:800;
+  background:linear-gradient(90deg,#e9d5ff,#a5b4fc); -webkit-background-clip:text;
+  background-clip:text; -webkit-text-fill-color:transparent;}
+.app-masthead h1 {margin:6px 0 0; font-size:24px; font-weight:800; color:#fff; line-height:1.32;
+  letter-spacing:.2px; text-shadow:0 2px 14px rgba(0,0,0,.3);}
+.app-masthead .sub {margin:6px 0 0; font-size:12.5px; color:#c2c9ef; letter-spacing:.2px;}
+.app-masthead .mh-ver {margin-left:auto; text-align:right; font-size:12px; color:#c7cdf0;
+  border-left:1px solid rgba(255,255,255,.16); padding-left:22px; line-height:1.9;}
+.app-masthead .mh-ver b {color:#fff; font-size:14px;}
 
 /* ── แถบชื่อหน้า / breadcrumb ─────────────────────────── */
 .page-head {position:relative; overflow:hidden; display:flex; align-items:center;
-  justify-content:space-between; margin:16px 0; flex-wrap:wrap; gap:8px;
-  background:linear-gradient(120deg,var(--navy2),var(--navy)); padding:15px 22px;
-  border-radius:14px; box-shadow:0 8px 22px rgba(13,37,82,.22);}
+  justify-content:space-between; margin:18px 0 6px; flex-wrap:wrap; gap:8px;
+  background:linear-gradient(120deg,#fff,#f6f7fe); padding:16px 22px;
+  border:1px solid var(--line); border-radius:16px;
+  box-shadow:0 12px 30px -18px rgba(var(--shadow),.3);}
 .page-head::before{content:""; position:absolute; left:0; top:0; bottom:0; width:6px;
-  background:linear-gradient(180deg,var(--gold2),var(--gold));}
-.page-head .pg-title {font-size:19px; font-weight:700; color:#fff; padding-left:6px;}
-.page-head .crumb {font-size:12px; color:#cdddf7;}
-.page-head .crumb b {color:#fff;}
+  background:linear-gradient(180deg,var(--brand),var(--brand2));}
+.page-head .pg-title {font-size:19px; font-weight:700; color:var(--ink); padding-left:8px;}
+.page-head .crumb {font-size:12px; color:var(--muted);}
+.page-head .crumb b {color:var(--brand-ink);}
 
 /* ── การ์ด ───────────────────────────────────────────── */
-.card {border-radius:16px !important; background:var(--card) !important;
+.card {border-radius:18px !important; background:var(--card) !important;
   border:1px solid var(--line) !important;
-  box-shadow:0 1px 2px rgba(13,37,82,.04), 0 14px 30px -12px rgba(13,37,82,.14) !important;
-  padding:18px 20px !important; overflow:visible !important;
-  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;}
-.card:hover {transform:translateY(-2px);
-  box-shadow:0 2px 4px rgba(13,37,82,.05), 0 22px 40px -14px rgba(13,37,82,.22) !important;
-  border-color:#d3ddee !important;}
-.section-title {font-weight:600 !important; font-size:15px !important; color:var(--navy) !important;
-  position:relative; padding-left:13px !important; margin:0 0 12px !important; letter-spacing:.2px;}
-.section-title::before{content:""; position:absolute; left:0; top:2px; bottom:2px; width:4px;
-  border-radius:3px; background:linear-gradient(180deg,var(--gold2),var(--gold));}
+  box-shadow:0 1px 2px rgba(var(--shadow),.04), 0 18px 40px -22px rgba(var(--shadow),.22) !important;
+  padding:20px 22px !important; overflow:visible !important;
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;}
+.card:hover {transform:translateY(-3px);
+  box-shadow:0 2px 6px rgba(var(--shadow),.05), 0 28px 52px -22px rgba(var(--shadow),.32) !important;
+  border-color:#d6daf2 !important;}
+.section-title {font-weight:700 !important; font-size:15px !important; color:var(--ink) !important;
+  position:relative; padding-left:15px !important; margin:0 0 13px !important; letter-spacing:.1px;}
+.section-title::before{content:""; position:absolute; left:0; top:1px; bottom:1px; width:5px;
+  border-radius:4px; background:linear-gradient(180deg,var(--brand),var(--brand2));}
 
 /* ── ปุ่มหลัก (มีประกายเมื่อ hover) ────────────────────── */
 .run-btn {position:relative; overflow:hidden;
-  background:linear-gradient(120deg,var(--navy2),var(--navy) 70%) !important;
-  border:1px solid var(--navy-900) !important; color:#fff !important; font-weight:600 !important;
-  font-size:16px !important; letter-spacing:.5px; border-radius:12px !important;
-  padding:16px !important; margin-top:8px !important;
-  box-shadow:0 10px 22px -6px rgba(13,37,82,.5) !important;
-  transition:transform .14s ease, box-shadow .14s ease, filter .14s ease;}
-.run-btn::after{content:""; position:absolute; top:0; left:-60%; width:40%; height:100%;
-  background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);
-  transform:skewX(-20deg); transition:left .5s ease;}
-.run-btn:hover {transform:translateY(-2px); filter:brightness(1.08);
-  box-shadow:0 16px 30px -8px rgba(13,37,82,.55) !important;}
+  background:linear-gradient(120deg,var(--brand),var(--brand2) 60%, var(--brand3)) !important;
+  border:none !important; color:#fff !important; font-weight:700 !important;
+  font-size:16px !important; letter-spacing:.4px; border-radius:14px !important;
+  padding:17px !important; margin-top:10px !important;
+  box-shadow:0 14px 30px -10px rgba(var(--brand-rgb),.65) !important;
+  transition:transform .15s ease, box-shadow .15s ease, filter .15s ease;}
+.run-btn::after{content:""; position:absolute; top:0; left:-60%; width:42%; height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.4),transparent);
+  transform:skewX(-20deg); transition:left .55s ease;}
+.run-btn:hover {transform:translateY(-2px); filter:brightness(1.06) saturate(1.05);
+  box-shadow:0 20px 38px -10px rgba(var(--brand-rgb),.72) !important;}
 .run-btn:hover::after{left:120%;}
 
-.ai-btn {background:linear-gradient(160deg,#fffbf2,#f8efd9) !important;
-  border:1px solid var(--gold) !important; color:#7a5f24 !important; font-weight:600 !important;
-  border-radius:12px !important; padding:12px !important; transition:all .15s ease;}
-.ai-btn:hover {background:linear-gradient(160deg,#fbf2dc,#f3e6c4) !important;
-  transform:translateY(-1px); box-shadow:0 8px 18px -8px rgba(202,162,78,.6) !important;}
+.ai-btn {background:#fff !important;
+  border:1px solid #d8dcf3 !important; color:var(--brand-ink) !important; font-weight:600 !important;
+  border-radius:12px !important; padding:12px !important; transition:all .16s ease;
+  box-shadow:0 6px 16px -12px rgba(var(--brand-rgb),.6) !important;}
+.ai-btn:hover {background:linear-gradient(120deg,var(--tint),var(--tint2)) !important;
+  border-color:var(--brand) !important; color:var(--brand-deep) !important;
+  transform:translateY(-2px); box-shadow:0 12px 24px -12px rgba(var(--brand-rgb),.7) !important;}
 
-.status-box {border-radius:14px !important; padding:15px 18px !important; color:var(--ink) !important;
-  background:linear-gradient(120deg,#f4f8fe,#eef3fc) !important; border:1px solid #d7e3f7 !important;
-  font-size:14px !important; line-height:1.75; position:relative; padding-left:20px !important;}
-.status-box::before{content:""; position:absolute; left:0; top:0; bottom:0; width:5px;
-  border-radius:14px 0 0 14px; background:linear-gradient(180deg,var(--accent),var(--navy));}
+.status-box {border-radius:16px !important; padding:16px 18px !important; color:var(--ink) !important;
+  background:linear-gradient(120deg,#fbfbff,#f3f4fe) !important; border:1px solid #e2e5f6 !important;
+  font-size:14px !important; line-height:1.8; position:relative; padding-left:22px !important;
+  box-shadow:0 10px 26px -20px rgba(var(--shadow),.3);}
+.status-box::before{content:""; position:absolute; left:0; top:0; bottom:0; width:6px;
+  border-radius:16px 0 0 16px; background:linear-gradient(180deg,var(--brand),var(--brand2));}
+.status-box b {color:var(--brand-ink);}
 
-.hint {font-size:12.5px !important; color:var(--muted) !important; margin:4px 2px 2px !important;}
+/* ── การ์ดต้อนรับแบบคู่มือ 3 ขั้นตอน (empty state ฝั่งผลลัพธ์) ── */
+.welcome-guide {padding:18px 20px 18px 22px !important;}
+.welcome-guide .wg-title {font-weight:700; font-size:14.5px; color:var(--brand-deep);
+  margin-bottom:12px;}
+.welcome-guide .wg-step {display:flex; align-items:center; gap:12px; font-size:13.5px;
+  color:var(--ink); padding:7px 0;}
+.welcome-guide .wg-step b {flex:0 0 26px; width:26px; height:26px; border-radius:50%;
+  display:inline-flex; align-items:center; justify-content:center; font-size:13px; color:#fff;
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  box-shadow:0 6px 14px -6px rgba(var(--brand-rgb),.6);}
+
+.hint {font-size:12.5px !important; color:var(--muted) !important; margin:5px 2px 2px !important;}
 .quick-btn {border-radius:999px !important; font-size:12.5px !important; font-weight:600 !important;
-  background:#eef3fb !important; border:1px solid #d7e2f1 !important; color:#274472 !important;
-  min-width:0 !important; padding:7px 14px !important; transition:all .15s ease;}
-.quick-btn:hover {background:linear-gradient(120deg,var(--navy2),var(--navy)) !important;
-  border-color:var(--navy) !important; color:#fff !important; transform:translateY(-1px);
-  box-shadow:0 6px 14px -6px rgba(13,37,82,.5) !important;}
+  background:var(--tint) !important; border:1px solid #e0e3f5 !important; color:var(--brand-ink) !important;
+  min-width:0 !important; padding:8px 15px !important; transition:all .16s ease;}
+.quick-btn:hover {background:linear-gradient(120deg,var(--brand),var(--brand2)) !important;
+  border-color:transparent !important; color:#fff !important; transform:translateY(-2px);
+  box-shadow:0 10px 20px -8px rgba(var(--brand-rgb),.6) !important;}
+
+/* ── โซน "ชุดสำเร็จรูป" — กล่องแยกให้ดูเรียบร้อย ────────── */
+.quick-panel {border:1px solid #e2e6f6 !important; border-radius:14px !important;
+  background:linear-gradient(160deg,#fbfbff,#f1f2fe) !important;
+  padding:14px 15px !important; margin:6px 0 16px !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7) !important;}
+.quick-head {font-weight:700 !important; font-size:12.5px !important;
+  color:var(--brand-ink) !important; margin:0 2px 12px !important; letter-spacing:.2px;}
+.quick-row {gap:8px !important; flex-wrap:wrap !important;}
+.quick-panel .quick-btn {background:#ffffff !important; border-color:#dfe3f6 !important;}
+.quick-panel .quick-btn:hover {background:linear-gradient(120deg,var(--brand),var(--brand2)) !important;
+  border-color:transparent !important; color:#fff !important;}
+
+/* ── เส้นคั่นหัวข้อ "เลือกตามหมวดหมู่" ───────────────────── */
+.group-divider {display:flex !important; align-items:center; gap:11px;
+  font-size:11.5px !important; font-weight:700 !important; color:var(--faint) !important;
+  letter-spacing:.6px; margin:4px 2px 8px !important;}
+.group-divider::after {content:""; flex:1; height:1px;
+  background:linear-gradient(90deg,#dde1f5,transparent);}
 
 /* ── หัวข้อหมวด + ตาราง grid ของรายการวัตถุ ───────────── */
-.cat-title {font-size:12.5px !important; font-weight:600 !important; color:#33507e !important;
-  margin:13px 2px 5px !important; letter-spacing:.2px;}
 .preset-group div[data-testid="checkbox-group"] {
-  display:grid !important; grid-template-columns:repeat(2, minmax(0,1fr)) !important; gap:8px !important;}
+  display:grid !important; grid-template-columns:repeat(auto-fit, minmax(126px,1fr)) !important; gap:6px !important;}
 .preset-group div[data-testid="checkbox-group"] label {
   margin:0 !important; width:100% !important; box-sizing:border-box !important;
-  border:1px solid #dbe4f1 !important; border-radius:10px !important;
-  background:#fbfcff !important; padding:8px 11px !important; transition:all .14s ease;}
+  border:1px solid #e3e6f5 !important; border-radius:10px !important;
+  background:#fbfcff !important; padding:6px 10px !important; font-size:12.5px !important;
+  line-height:1.25 !important; transition:all .15s ease;}
 .preset-group div[data-testid="checkbox-group"] label:hover {
-  border-color:#9db4d8 !important; background:#f1f6fe !important; transform:translateY(-1px);}
+  border-color:#b6bdec !important; background:var(--tint) !important; transform:translateY(-1px);}
 .preset-group div[data-testid="checkbox-group"] label:has(input:checked) {
-  border-color:var(--accent) !important; background:#eaf1fe !important;
-  box-shadow:0 0 0 1px var(--accent), 0 6px 14px -8px rgba(59,130,246,.6) !important;}
+  border-color:var(--brand) !important; background:linear-gradient(120deg,#eef0fe,#f1ecfe) !important;
+  font-weight:600 !important; color:var(--brand-deep) !important;
+  box-shadow:0 0 0 1px var(--brand), 0 8px 18px -10px rgba(var(--brand-rgb),.65) !important;}
 
-/* ── dropdown รายการสัตว์: กันการ์ดบังป๊อปอัป ───────────── */
+/* ── dropdown รายการสัตว์: ตัวกรอง + ป๊อปอัปเป็นระเบียบ ── */
 .animal-dd, .animal-dd * {overflow:visible !important;}
 .animal-dd .options, .options {z-index:80 !important;}
+.animal-dd .options {max-height:240px !important; overflow-y:auto !important;
+  border-radius:12px !important; box-shadow:0 14px 30px -10px rgba(var(--shadow),.32) !important;}
+.animal-dd .options li, .animal-dd .options .item {font-size:13px !important; padding:7px 12px !important;}
+.animal-letter {margin-bottom:8px !important;}
+.animal-letter .options {max-height:280px !important; overflow-y:auto !important;}
 
-/* ── แท็บระบบ (เมนูหลัก) ──────────────────────────────── */
-.gov-tabs {border-radius:0 0 16px 16px !important;
-  background:linear-gradient(180deg,var(--navy2),var(--navy)) !important;
-  box-shadow:0 12px 26px -10px rgba(13,37,82,.45) !important; margin-bottom:8px !important;
-  border-top:3px solid var(--gold) !important;}
-.gov-tabs .tab-nav, .gov-tabs [role="tablist"] {background:transparent !important;
-  border:none !important; padding:0 12px !important; gap:4px !important;}
-.gov-tabs button[role="tab"] {color:#bccdec !important; font-weight:600 !important;
+/* ── แท็บระบบ (เมนูหลัก) — segmented pill bar ───────────── */
+.gov-tabs {background:transparent !important; border:none !important; box-shadow:none !important;
+  margin:18px 0 8px !important;}
+.gov-tabs .tab-nav, .gov-tabs [role="tablist"] {display:flex !important; gap:6px !important;
+  background:#fff !important; border:1px solid var(--line) !important; border-bottom:1px solid var(--line) !important;
+  padding:6px !important; border-radius:16px !important; width:max-content !important; max-width:100% !important;
+  box-shadow:0 12px 30px -20px rgba(var(--shadow),.35) !important;}
+.gov-tabs button[role="tab"] {color:var(--muted) !important; font-weight:600 !important;
   font-size:14px !important; background:transparent !important; border:none !important;
-  border-bottom:3px solid transparent !important; padding:13px 20px !important;
-  margin-bottom:-3px !important; transition:all .15s ease;}
-.gov-tabs button[role="tab"]:hover {color:#fff !important; background:rgba(255,255,255,.06) !important;}
+  border-radius:11px !important; padding:11px 22px !important; margin:0 !important;
+  transition:all .16s ease;}
+.gov-tabs button[role="tab"]:hover {color:var(--brand-ink) !important; background:var(--tint) !important;}
 .gov-tabs button[role="tab"].selected {color:#fff !important;
-  border-bottom-color:var(--gold) !important; background:rgba(255,255,255,.09) !important;}
+  background:linear-gradient(135deg,var(--brand),var(--brand2)) !important;
+  box-shadow:0 10px 22px -10px rgba(var(--brand-rgb),.65) !important;}
 
 /* ── การ์ด KPI + เอกสารรายงาน ─────────────────────────── */
-.rpt-doc {background:#fff; border:1px solid var(--line); border-radius:16px; padding:24px 26px;
-  box-shadow:0 14px 30px -12px rgba(13,37,82,.16); position:relative; overflow:hidden;}
+.rpt-doc {background:#fff; border:1px solid var(--line); border-radius:20px; padding:26px 28px;
+  box-shadow:0 18px 44px -22px rgba(var(--shadow),.26); position:relative; overflow:hidden;}
 .rpt-doc::before{content:""; position:absolute; top:0; left:0; right:0; height:5px;
-  background:linear-gradient(90deg,var(--gold),var(--gold2),var(--gold));}
+  background:linear-gradient(90deg,var(--brand),var(--brand2),var(--brand3));}
 .rpt-head {display:flex; align-items:center; gap:16px; border-bottom:1px solid var(--line);
-  padding-bottom:16px; margin-bottom:16px;}
-.rpt-emblem {width:56px; height:56px; flex:0 0 56px; border-radius:15px; font-size:28px;
+  padding-bottom:18px; margin-bottom:18px;}
+.rpt-emblem {width:58px; height:58px; flex:0 0 58px; border-radius:16px; font-size:28px;
   display:flex; align-items:center; justify-content:center;
-  background:linear-gradient(160deg,#eef3fc,#e3ebf8); border:1px solid var(--gold);}
-.rpt-org {font-size:12px; letter-spacing:4px; color:var(--gold); font-weight:700;}
-.rpt-title {font-size:20px; font-weight:700; color:var(--navy); margin-top:3px;}
+  background:linear-gradient(160deg,#eef0fe,#efe9fe); border:1px solid #d9ddf5;}
+.rpt-org {font-size:12px; letter-spacing:4px; color:var(--brand-ink); font-weight:800;}
+.rpt-title {font-size:20px; font-weight:800; color:var(--ink); margin-top:3px;}
 .rpt-meta {display:flex; flex-wrap:wrap; gap:8px 28px; font-size:12.5px; color:var(--muted);
   margin-bottom:18px;}
-.rpt-meta b {color:var(--navy2); font-weight:600;}
-.kpi-row {display:grid; grid-template-columns:repeat(auto-fit, minmax(155px, 1fr)); gap:13px;}
-.kpi {position:relative; overflow:hidden; background:linear-gradient(160deg,#fbfcff,#eef3fc);
-  border:1px solid #dde6f4; border-radius:14px; padding:18px 14px; text-align:center;
-  transition:transform .15s ease, box-shadow .15s ease;}
+.rpt-meta b {color:var(--brand-ink); font-weight:600;}
+.kpi-row {display:grid; grid-template-columns:repeat(auto-fit, minmax(155px, 1fr)); gap:14px;}
+.kpi {position:relative; overflow:hidden; background:linear-gradient(160deg,#fbfcff,#f1f3fe);
+  border:1px solid #e4e7f6; border-radius:16px; padding:20px 14px; text-align:center;
+  transition:transform .16s ease, box-shadow .16s ease;}
 .kpi::before{content:""; position:absolute; top:0; left:0; right:0; height:3px;
-  background:linear-gradient(90deg,var(--accent),var(--navy3));}
-.kpi:hover {transform:translateY(-2px); box-shadow:0 14px 26px -12px rgba(13,37,82,.3);}
-.kpi-v {font-size:30px; font-weight:700; color:var(--navy); line-height:1.1;}
-.kpi-l {font-size:11.5px; color:var(--muted); margin-top:6px;}
+  background:linear-gradient(90deg,var(--brand),var(--brand2));}
+.kpi:hover {transform:translateY(-3px); box-shadow:0 18px 32px -16px rgba(var(--brand-rgb),.4);}
+.kpi-v {font-size:31px; font-weight:800; line-height:1.1;
+  background:linear-gradient(120deg,var(--brand-ink),var(--brand3)); -webkit-background-clip:text;
+  background-clip:text; -webkit-text-fill-color:transparent;}
+.kpi-l {font-size:11.5px; color:var(--muted); margin-top:7px;}
 
 /* ── ส่วนท้าย (footer หลายคอลัมน์) ─────────────────────── */
-.app-footer {margin-top:20px; border-radius:16px; overflow:hidden;
+.app-footer {margin-top:22px; border-radius:20px; overflow:hidden;
   border:1px solid var(--line); background:#fff;
-  box-shadow:0 14px 30px -16px rgba(13,37,82,.2);}
-.app-footer .ft-cols {display:flex; flex-wrap:wrap; gap:26px; padding:22px 28px;
-  background:linear-gradient(180deg,#f6f9fe,#fff);}
-.app-footer .ft-col {flex:1 1 200px; font-size:12.5px; color:var(--muted); line-height:1.9;}
-.app-footer .ft-h {font-size:13px; font-weight:600; color:var(--navy);
-  border-bottom:2px solid var(--gold); padding-bottom:6px; margin-bottom:9px; display:inline-block;}
-.app-footer .ft-base {background:linear-gradient(90deg,var(--navy-900),#0c2350); color:#b3c2e2;
-  font-size:11.5px; text-align:center; padding:12px 16px; letter-spacing:.4px;}
+  box-shadow:0 18px 44px -26px rgba(var(--shadow),.3);}
+.app-footer .ft-cols {display:flex; flex-wrap:wrap; gap:26px; padding:24px 30px;
+  background:linear-gradient(180deg,#f8f9fe,#fff);}
+.app-footer .ft-col {flex:1 1 200px; font-size:12.5px; color:var(--muted); line-height:2;}
+.app-footer .ft-h {font-size:13px; font-weight:700; color:var(--ink);
+  border-bottom:2px solid var(--brand); padding-bottom:6px; margin-bottom:10px; display:inline-block;}
+.app-footer .ft-base {background:linear-gradient(90deg,var(--brand-night),#241f57); color:#c2c8ee;
+  font-size:11.5px; text-align:center; padding:13px 16px; letter-spacing:.4px;}
 
-/* ── กล่องอัปโหลดวิดีโอ (สวยขึ้น) ──────────────────────── */
-.video-in .wrap {border:2px dashed #b6c6e4 !important; border-radius:14px !important;
-  background:linear-gradient(160deg,#f6f9ff,#eaf1fc) !important; color:#56698c !important;
-  transition:border-color .18s ease, background .18s ease, box-shadow .18s ease;}
-.video-in .wrap:hover {border-color:var(--accent) !important; background:#e8f0fe !important;
-  box-shadow:inset 0 0 0 3px rgba(59,130,246,.08) !important;}
-.video-in .wrap svg {color:var(--navy2) !important; opacity:.9; transform:scale(1.05);}
-.upload-hint {text-align:center; color:#7c8aa8 !important; margin-top:8px !important;}
+/* ── กล่องอัปโหลดวิดีโอ ────────────────────────────────── */
+.video-in .wrap {border:2px dashed #c0c6ee !important; border-radius:16px !important;
+  background:linear-gradient(160deg,#f8f9ff,#f0f1fd) !important; color:var(--muted) !important;
+  transition:border-color .2s ease, background .2s ease, box-shadow .2s ease;}
+.video-in .wrap:hover {border-color:var(--brand) !important; background:#eef0fe !important;
+  box-shadow:inset 0 0 0 3px rgba(var(--brand-rgb),.08) !important;}
+.video-in .wrap svg {color:var(--brand) !important; opacity:.92; transform:scale(1.05);}
+.upload-hint {text-align:center; color:var(--faint) !important; margin-top:9px !important;}
 
-/* ── การ์ดเลือกวัตถุ: หัวข้อหมวดเป็นชิป + เช็กบ็อกซ์สวยขึ้น ── */
-.hint-head {font-weight:600 !important; color:var(--navy2) !important;
-  font-size:13px !important; margin:2px 2px 9px !important;}
-.cat-title {margin:15px 0 8px !important;}
+/* ── การ์ดเลือกวัตถุ: หัวข้อหมวดเป็นชิป ─────────────────── */
+.hint-head {font-weight:600 !important; color:var(--brand-ink) !important;
+  font-size:13px !important; margin:2px 2px 10px !important;}
+.cat-title {margin:11px 0 6px !important;}
 .cat-title p, .cat-title span {display:inline-block !important;
-  background:linear-gradient(120deg,#eef3fb,#e3ecfa) !important; border:1px solid #d6e1f3 !important;
-  color:var(--navy2) !important; font-weight:600 !important; font-size:12px !important;
-  padding:5px 14px !important; border-radius:999px !important; letter-spacing:.2px;}
-.preset-group div[data-testid="checkbox-group"] {gap:9px !important;}
-.preset-group div[data-testid="checkbox-group"] label {font-size:13px !important;
-  padding:9px 12px !important;}
-.preset-group div[data-testid="checkbox-group"] label:has(input:checked) {
-  font-weight:600 !important; color:var(--navy) !important;}
+  background:linear-gradient(120deg,var(--tint),var(--tint2)) !important; border:1px solid #dde1f5 !important;
+  color:var(--brand-ink) !important; font-weight:700 !important; font-size:11.5px !important;
+  padding:4px 12px !important; border-radius:999px !important; letter-spacing:.2px;}
 """
 CSS = CSS.replace("%DOT%", _dot)
 
@@ -773,6 +861,9 @@ HERO = f"""
   <div class="ub-right"><span class="ub-dot"></span> {_badge}</div>
 </div>
 <div class="app-masthead">
+  <span class="mh-aurora a1"></span>
+  <span class="mh-aurora a2"></span>
+  <span class="mh-aurora a3"></span>
   <div class="mh-emblem">🛡️</div>
   <div class="mh-titles">
     <div class="org">AIDC TECH</div>
@@ -811,9 +902,12 @@ FOOTER = """
 """
 
 WELCOME = (
-    '<div class="status-box">โปรดอัปโหลดไฟล์วิดีโอและเลือกรายการวัตถุที่ต้องการ'
-    'ตรวจจับทางด้านซ้าย จากนั้นกดปุ่ม <b>เริ่มประมวลผล</b> '
-    'ระบบจะแสดงผลการวิเคราะห์ ณ บริเวณนี้</div>'
+    '<div class="status-box welcome-guide">'
+    '<div class="wg-title">เริ่มต้นใช้งานใน 3 ขั้นตอน</div>'
+    '<div class="wg-step"><b>1</b><span>อัปโหลดไฟล์วิดีโอทางด้านซ้าย</span></div>'
+    '<div class="wg-step"><b>2</b><span>เลือกวัตถุที่ต้องการตรวจจับ</span></div>'
+    '<div class="wg-step"><b>3</b><span>กดปุ่ม “เริ่มประมวลผล” — ผลการวิเคราะห์จะแสดงตรงนี้</span></div>'
+    '</div>'
 )
 
 with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
@@ -830,19 +924,22 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                 # ───────── ฝั่งซ้าย: ตั้งค่า ─────────
                 with gr.Column(scale=4):
                     with gr.Group(elem_classes="card"):
-                        gr.Markdown("🎞️ ไฟล์วิดีโอนำเข้า", elem_classes="section-title")
+                        gr.Markdown("ขั้นที่ 1 · อัปโหลดวิดีโอ", elem_classes="section-title")
                         video_in = gr.Video(label="", height=220, elem_classes="video-in")
                         gr.Markdown("รองรับไฟล์ .mp4 · .mov · .avi — ลากมาวางหรือคลิกเพื่อเลือก",
                                     elem_classes="hint upload-hint")
 
                     with gr.Group(elem_classes="card obj-card"):
-                        gr.Markdown("🎯 รายการวัตถุที่ต้องการตรวจจับ",
+                        gr.Markdown("ขั้นที่ 2 · เลือกวัตถุที่จะตรวจจับ",
                                     elem_classes="section-title")
-                        gr.Markdown("ชุดสำเร็จรูป — กดเลือกทีเดียวหลายอย่าง",
-                                    elem_classes="hint hint-head")
-                        with gr.Row():
-                            quick_btns = [gr.Button(name, size="sm", elem_classes="quick-btn")
-                                          for name in QUICK_SETS]
+                        # โซนเลือกเร็ว — จัดเป็นกล่องแยกให้ดูเป็นระเบียบ
+                        with gr.Group(elem_classes="quick-panel"):
+                            gr.Markdown("⚡ ชุดสำเร็จรูป · กดเลือกทีเดียวหลายอย่าง",
+                                        elem_classes="quick-head")
+                            with gr.Row(elem_classes="quick-row"):
+                                quick_btns = [gr.Button(name, size="sm", elem_classes="quick-btn")
+                                              for name in QUICK_SETS]
+                        gr.Markdown("เลือกตามหมวดหมู่", elem_classes="group-divider")
                         # CheckboxGroup แยกตามหมวด เรียงเป็นตาราง grid 2 คอลัมน์
                         preset_groups = []
                         for cat_label, items in CATEGORIES.items():
@@ -854,10 +951,14 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
 
                         gr.Markdown(f"สัตว์ (รายการละเอียด {len(ANIMALS)} ชนิด)",
                                     elem_classes="cat-title")
+                        animal_letter = gr.Dropdown(
+                            choices=ANIMAL_LETTER_CHOICES, value=ANIMAL_ALL,
+                            label="กรองตามตัวอักษร (A–Z)", elem_classes="animal-letter")
                         animal_dd = gr.Dropdown(
                             choices=ANIMALS, value=[], multiselect=True, filterable=True,
                             show_label=False, elem_classes="animal-dd",
-                            info="พิมพ์ค้นหาชื่อสัตว์ (ภาษาอังกฤษ) แล้วเลือกได้หลายชนิด")
+                            info="ย่อรายการด้วยตัวกรองด้านบน หรือพิมพ์ค้นหาชื่อสัตว์ (อังกฤษ) "
+                                 "ได้เลย — รายการที่เลือกไว้จะไม่หายเมื่อสลับหมวด")
 
                         custom_tb = gr.Textbox(
                             label="เพิ่มเอง (พิมพ์ภาษาอังกฤษ คั่นด้วย ,)",
@@ -870,40 +971,46 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
                             label="โมเดล .pt (ใช้เมื่อไม่ได้เลือก/พิมพ์อะไร)")
 
                     with gr.Accordion("ตั้งค่าขั้นสูง", open=False, elem_classes="card"):
-                        conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
-                                            label="ความมั่นใจขั้นต่ำ (confidence)")
-                        stride_sl = gr.Slider(1, 10, value=1, step=1,
-                                              label="ประมวลผลทุก ๆ N เฟรม (เพิ่ม = เร็วขึ้น)")
+                        with gr.Row():
+                            conf_sl = gr.Slider(0.05, 0.95, value=0.25, step=0.05,
+                                                label="ความมั่นใจขั้นต่ำ (confidence)")
+                            stride_sl = gr.Slider(1, 10, value=1, step=1,
+                                                  label="ทุก ๆ N เฟรม (เพิ่ม = เร็วขึ้น)")
                         gpu_ck = gr.Checkbox(value=HAS_CUDA, label="ใช้ GPU เร่งความเร็ว",
                                              interactive=HAS_CUDA)
 
-                    seg_ck = gr.Checkbox(
-                        value=False,
-                        label="🎭 แสดงขอบเขตวัตถุแบบ mask (segmentation)",
-                        info="วาดพื้นที่วัตถุระบายสี ไม่ใช่แค่กรอบ — ใช้ได้กับการตรวจจับ "
-                             "80 ชนิดมาตรฐาน (ครั้งแรกจะดาวน์โหลดโมเดล seg เล็ก ๆ)")
-                    track_ck = gr.Checkbox(
-                        value=False,
-                        label="🔢 นับจำนวนตัวจริง (object tracking)",
-                        info="ติดตามแต่ละวัตถุด้วย ID แล้วนับ ‘ตัวที่ไม่ซ้ำ’ จริง ๆ "
-                             "(แนะนำให้ตั้ง ‘ทุก ๆ N เฟรม’ = 1 เพื่อความแม่นยำ)")
+                    with gr.Group(elem_classes="card"):
+                        gr.Markdown("ตัวเลือกเสริม (segmentation / นับจำนวน)",
+                                    elem_classes="section-title")
+                        with gr.Row():
+                            seg_ck = gr.Checkbox(
+                                value=False,
+                                label="🎭 แสดงขอบเขตแบบ mask",
+                                info="ระบายพื้นที่วัตถุแทนกรอบ · ใช้กับ 80 ชนิดมาตรฐาน")
+                            track_ck = gr.Checkbox(
+                                value=False,
+                                label="🔢 นับจำนวนตัวจริง",
+                                info="ติดตามด้วย ID นับตัวไม่ซ้ำ · แนะนำตั้ง N เฟรม = 1")
 
-                    run_btn = gr.Button("เริ่มประมวลผล", elem_classes="run-btn")
+                    run_btn = gr.Button("ขั้นที่ 3 · ▶  เริ่มประมวลผล", elem_classes="run-btn")
 
                 # ───────── ฝั่งขวา: ผลลัพธ์ ─────────
                 with gr.Column(scale=6):
                     status = gr.HTML(WELCOME)
                     with gr.Group(elem_classes="card"):
                         gr.Markdown("วิดีโอผลการประมวลผล", elem_classes="section-title")
-                        video_out = gr.Video(label="", height=360)
-                    with gr.Group(elem_classes="card"):
-                        gr.Markdown("สรุปผลการตรวจจับ", elem_classes="section-title")
-                        table_out = gr.Dataframe(label="", interactive=False, wrap=True)
-                    with gr.Group(elem_classes="card"):
-                        gr.Markdown("รายงานวิเคราะห์ด้วย AI", elem_classes="section-title")
-                        report_btn = gr.Button("📝 สร้างรายงานประเมินความเสี่ยง (Claude AI)",
-                                               elem_classes="ai-btn")
-                        report_md = gr.Markdown("")
+                        video_out = gr.Video(label="", height=320)
+                    with gr.Row(equal_height=False):
+                        with gr.Column(scale=1):
+                            with gr.Group(elem_classes="card"):
+                                gr.Markdown("สรุปผลการตรวจจับ", elem_classes="section-title")
+                                table_out = gr.Dataframe(label="", interactive=False, wrap=True)
+                        with gr.Column(scale=1):
+                            with gr.Group(elem_classes="card"):
+                                gr.Markdown("รายงานวิเคราะห์ด้วย AI", elem_classes="section-title")
+                                report_btn = gr.Button("📝 สร้างรายงานประเมินความเสี่ยง (Claude AI)",
+                                                       elem_classes="ai-btn")
+                                report_md = gr.Markdown("")
 
         # ═════════ แท็บที่ 2: รายงานผล ═════════
         with gr.Tab("รายงานผล") as report_tab:
@@ -952,6 +1059,10 @@ with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
     for btn, name in zip(quick_btns, QUICK_SETS):
         btn.click(_add_set(QUICK_SETS[name]),
                   inputs=preset_groups, outputs=preset_groups)
+
+    # ตัวกรองตามตัวอักษร → ย่อรายการในดรอปดาวน์สัตว์ (คงรายการที่เลือกไว้)
+    animal_letter.change(filter_animals,
+                         inputs=[animal_letter, animal_dd], outputs=animal_dd)
 
     n_groups = len(preset_groups)
 

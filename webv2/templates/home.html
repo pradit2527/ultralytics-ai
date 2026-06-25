@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}AIDC Tech · ระบบวิเคราะห์วิดีโอด้วย AI{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <span class="hero-aurora a1"></span>
+  <span class="hero-aurora a2"></span>
+  <div class="hero-inner">
+    <div class="hero-badge">AI VIDEO ANALYTICS · เวอร์ชัน 2.0</div>
+    <h1 class="hero-title">ระบบประมวลผลและวิเคราะห์วิดีโอด้วยปัญญาประดิษฐ์</h1>
+    <p class="hero-sub">
+      ตรวจจับวัตถุ คน สัตว์ และเหตุการณ์ในวิดีโอ พร้อมรายงานประเมินความเสี่ยง
+      โดย AI — บริหารผู้ใช้และเก็บประวัติผลวิเคราะห์ด้วย Django
+    </p>
+    <div class="hero-actions">
+      {% if user.is_authenticated %}
+        <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">เข้าใช้เครื่องมือวิเคราะห์</a>
+        <a href="{% url 'history' %}" class="btn btn-soft btn-lg">ดูประวัติผล</a>
+      {% else %}
+        <a href="{% url 'login' %}" class="btn btn-primary btn-lg">เข้าสู่ระบบเพื่อเริ่มใช้งาน</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="feature-grid">
+  <div class="feature-card">
+    <div class="feature-ic">🎯</div>
+    <h3>ตรวจจับอัจฉริยะ</h3>
+    <p>เลือกวัตถุที่ต้องการ หรือพิมพ์คำเองด้วยโมเดล open-vocabulary รองรับ
+       segmentation และการนับตัวจริง</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-ic">📝</div>
+    <h3>รายงานด้วย AI</h3>
+    <p>สรุปและประเมินความเสี่ยงจากผลตรวจจับโดย Claude AI ส่งออกเป็น Word/Excel ได้</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-ic">🔐</div>
+    <h3>จัดการผู้ใช้</h3>
+    <p>ระบบล็อกอินและสิทธิ์การเข้าถึงด้วย Django พร้อมหน้าผู้ดูแลระบบสำหรับจัดการบัญชี</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-ic">🗂️</div>
+    <h3>เก็บประวัติผล</h3>
+    <p>บันทึกผลวิเคราะห์แต่ละครั้งลงฐานข้อมูล ค้นดูย้อนหลังได้ผูกกับบัญชีผู้ใช้</p>
+  </div>
+</section>
+{% endblock %}

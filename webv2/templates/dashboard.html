@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}เครื่องมือวิเคราะห์ · AIDC Tech{% endblock %}
+{% block body_class %}is-dashboard{% endblock %}
+
+{% block content %}
+<div class="tool-bar">
+  <div class="tool-title">
+    <span class="tool-dot"></span>
+    เครื่องมือวิเคราะห์วิดีโอ (YOLO)
+  </div>
+  <div class="tool-actions">
+    <button type="button" class="btn btn-ghost" id="fsBtn" onclick="toggleFrameFull()">⛶ เต็มจอ</button>
+    <a href="{{ GRADIO_URL }}" target="_blank" rel="noopener" class="btn btn-soft">เปิดแท็บใหม่ ↗</a>
+  </div>
+</div>
+
+<div class="embed-card" id="embedCard">
+  <button type="button" class="btn btn-soft frame-exit" onclick="toggleFrameFull()">✕ ออกจากเต็มจอ</button>
+  <iframe
+    id="toolFrame"
+    class="gradio-frame"
+    src="{{ GRADIO_URL }}"
+    title="AIDC Tech Video Processor"
+    allow="camera; microphone; clipboard-read; clipboard-write; fullscreen"></iframe>
+</div>
+
+<p class="embed-hint">
+  หากหน้าจอด้านบนว่างหรือเชื่อมต่อไม่ได้ ตรวจสอบว่าเปิดบริการ Gradio (app.py) ไว้ที่
+  <code>{{ GRADIO_URL }}</code> แล้ว — กด <b>เต็มจอ</b> เพื่อขยายเครื่องมือให้พอดีหน้าจอ
+</p>
+
+<script>
+  function toggleFrameFull() {
+    var card = document.getElementById('embedCard');
+    var on = card.classList.toggle('frame-full');
+    document.body.classList.toggle('frame-full-active', on);
+    document.getElementById('fsBtn').textContent = on ? '⛶ ย่อกลับ' : '⛶ เต็มจอ';
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.getElementById('embedCard').classList.contains('frame-full')) {
+      toggleFrameFull();
+    }
+  });
+</script>
+{% endblock %}
