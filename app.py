@@ -928,7 +928,38 @@ WELCOME = (
     '</div>'
 )
 
-with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False) as demo:
+# แปลข้อความอังกฤษในกล่องอัปโหลดของ Gradio เป็นไทย (ฉีดผ่าน JS ตอนโหลด
+# + MutationObserver เพื่อคงไว้แม้คอมโพเนนต์ re-render)
+JS_TRANSLATE = """
+() => {
+  const MAP = {
+    'Drop Video Here': 'ลากวิดีโอมาวางที่นี่',
+    'Drop File Here': 'ลากไฟล์มาวางที่นี่',
+    '- or -': 'หรือ',
+    'Click to Upload': 'คลิกเพื่อเลือกไฟล์'
+  };
+  const walk = (root) => {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (w.nextNode()) nodes.push(w.currentNode);
+    for (const n of nodes) {
+      const t = (n.nodeValue || '').trim();
+      if (MAP[t]) n.nodeValue = n.nodeValue.replace(t, MAP[t]);
+    }
+  };
+  const run = () => document.querySelectorAll('.video-in').forEach(walk);
+  let queued = false;
+  const schedule = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; run(); });
+  };
+  run();
+  new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
+}
+"""
+
+with gr.Blocks(title="AIDC Tech Video Processor", fill_width=False, js=JS_TRANSLATE) as demo:
     gr.HTML(HERO)
 
     report_state = gr.State(None)      # ผลตรวจจับล่าสุด (แชร์ข้ามแท็บ)
